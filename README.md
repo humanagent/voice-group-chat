@@ -85,7 +85,8 @@ closed 1008 invalid_request
 
 Same value in `public/r/realtime-transcriber-01.json`, so `shadcn add` ships it
 broken. `elevenlabs/examples` already has it right. Filed with a standalone
-repro, 2026-08-29.
+repro, 2026-08-29, and fixed in
+[elevenlabs/ui#83](https://github.com/elevenlabs/ui/pull/83).
 
 ## Text to speech
 
