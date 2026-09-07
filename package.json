@@ -1,0 +1,21 @@
+{
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.23.0",
+  "engines": {
+    "pnpm": "10.23.0"
+  },
+  "scripts": {
+    "tui": "HERMES_HOME=$PWD/.hermes uv run groups",
+    "start": "HERMES_HOME=$PWD/.hermes uv run groups up",
+    "stop": "HERMES_HOME=$PWD/.hermes uv run groups down",
+    "reload": "HERMES_HOME=$PWD/.hermes uv run groups restart",
+    "status": "HERMES_HOME=$PWD/.hermes uv run groups status",
+    "test": "HERMES_HOME=$PWD/.hermes uv run groups test",
+    "test:unit": "HERMES_HOME=$PWD/.hermes uv run python -m pytest -q -m 'not live' tests/runtime tests/harness",
+    "setup": "uv sync && HERMES_HOME=$PWD/.hermes uv run groups init",
+    "web": "pnpm --dir web dev",
+    "web:build": "pnpm --dir web build",
+    "test:web": "pnpm --dir web test"
+  }
+}

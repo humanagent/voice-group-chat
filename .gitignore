@@ -1,0 +1,24 @@
+__pycache__/
+.venv/
+.ruff_cache/
+.pytest_cache/
+.hermes-dev/
+.venv/
+.eval-home/
+scripts/dev-run.sh
+trajectory_samples.jsonl
+failed_trajectories.jsonl
+/AGENTS.md
+
+# pnpm is here for the command surface only — this project has no JS deps.
+node_modules/
+
+# this project's own Hermes home — config, keys, session db
+.hermes/
+.hermes-*/
+group.json
+
+# the web app
+web/.next/
+web/next-env.d.ts
+.claude/worktrees/

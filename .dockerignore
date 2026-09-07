@@ -1,0 +1,25 @@
+# The homes: keys, session databases and the drawn cast. They belong on the
+# volume, never in an image — an image is shared, and these hold credentials.
+.hermes/
+.hermes-*/
+group.json
+
+# Build output and caches, all of which the image makes for itself.
+#
+# `**/` and not a bare name. A pattern without it is anchored at the context
+# root, so `node_modules/` matched the one that does not exist here and let
+# `web/node_modules` through: 1.1GB of the host's packages, built for the wrong
+# platform, copied over the ones the image had just installed for the right one.
+**/node_modules
+**/__pycache__
+**/.venv
+**/.next
+**/.pytest_cache
+**/.ruff_cache
+**/*.tsbuildinfo
+
+# Nothing in the build reads these.
+.git/
+.github/
+.claude/
+docs/

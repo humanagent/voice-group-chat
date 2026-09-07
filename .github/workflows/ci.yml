@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A second push to a branch makes the first run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        # Pulls upstream Hermes from git, which is most of the wall time here.
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        # `not live` explicitly rather than relying on the skip: those six talk
+        # to a running gateway and a real model, and CI has neither. Making the
+        # exclusion visible here means a change to the skip logic cannot quietly
+        # turn them into failures.
+        run: uv run python -m pytest -q -m "not live"
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Types
+        run: pnpm typecheck
+
+      - name: Test
+        # The web tests live in `tests/web/` with the others, so this reaches
+        # up out of the working directory; vitest.config.mts knows where they
+        # are, which is why the command itself does not have to.
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

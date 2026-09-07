@@ -1,0 +1,86 @@
+[project]
+name = "hermes-agent-groups"
+version = "0.0.0"
+description = "Group-conversation context and output policy for Hermes Agent"
+requires-python = ">=3.11"
+dependencies = [
+  "aiohttp>=3.14.3",
+  "elevenlabs>=2.65.0",
+  "hermes-agent",
+  "pydantic==2.13.4",
+  "rich>=14.3.3",
+  "typing-extensions==4.15.0",
+]
+
+[project.scripts]
+hermes-groups = "src.main:main"
+groups = "src.dev:main"
+
+[project.entry-points."hermes_agent.plugins"]
+group-layer = "src.gateway_plugin"
+
+[dependency-groups]
+dev = [
+  "basedpyright==1.39.3",
+  "pytest==9.0.3",
+  "ruff==0.9.6",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/group_context.md" = "src/group_context.md"
+
+[tool.uv.sources]
+hermes-agent = { git = "https://github.com/NousResearch/hermes-agent.git", tag = "v2026.7.20" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: runs against a running gateway; skipped when nothing is listening",
+]
+
+[tool.basedpyright]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+include = ["src", "tests"]
+ignore = [
+  "tests/**/test_*.py",
+  "conftest.py",
+]
+
+typeCheckingMode = "recommended"
+enableTypeIgnoreComments = false
+reportIgnoreCommentWithoutRule = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+
+# Re-enable high-signal rules beyond standard mode
+reportMissingTypeArgument = "error"
+reportMissingParameterType = "error"
+reportArgumentType = "error"
+reportReturnType = "error"
+reportOperatorIssue = "error"
+reportAttributeAccessIssue = "error"
+reportPossiblyUnboundVariable = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalSubscript = "error"
+reportTypedDictNotRequiredAccess = "error"
+reportConstantRedefinition = "error"
+reportUninitializedInstanceVariable = "error"
+reportDeprecated = "warning"
+
+# Planned compatibility exceptions
+reportMissingTypeStubs = "none"
+reportPrivateUsage = "none"
+reportUnusedCallResult = "none"
+reportImplicitRelativeImport = "none"
+reportImplicitStringConcatenation = "none"
+reportCallInDefaultInitializer = "none"
+reportUnnecessaryIsInstance = "none"
+reportUnusedParameter = "none"
