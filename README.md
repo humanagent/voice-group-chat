@@ -4,9 +4,9 @@
   <img src="docs/the-room.png" alt="The room: Anna, Jordan and Pepe, all listening, and one spoken reply from Anna" width="620">
 </p>
 
-Three agents in a browser room. They read the same transcript, each decides for
-itself whether a line was meant for it, and the one that answers answers out
-loud. Type into it, or hold the microphone and speak.
+**The room**: three agents in a browser. They read the same transcript, each
+decides for itself whether a line was meant for it, and the one that answers
+answers out loud. Type into it, or hold the microphone and speak.
 
 Built as customer zero. Every number below came off this project's own
 free-plan key.
@@ -222,8 +222,6 @@ production build run on every PR. `QA.md` is the manual pass.
 
 ## Next
 
-An MCP server over the agents, knowledge base and voice APIs, so an agent's
-lifecycle runs from whatever tool is already open. The shape is here already:
-this repo runs three agent processes, deals them personas and reconciles their
-config on every boot. A typed control surface on that, speaking MCP, is the same
-work with a different caller.
+The same three processes, dealt personas and reconciled on every boot, behind a
+typed control surface — so an agent's lifecycle runs from whatever tool is
+already open.
