@@ -85,7 +85,8 @@ closed 1008 invalid_request
 
 Same value in `public/r/realtime-transcriber-01.json`, so `shadcn add` ships it
 broken. `elevenlabs/examples` already has it right. Filed with a standalone
-repro, 2026-08-29.
+repro, 2026-08-29, and fixed in
+[elevenlabs/ui#83](https://github.com/elevenlabs/ui/pull/83).
 
 ## Text to speech
 
@@ -166,10 +167,10 @@ correct in a demo, load-bearing here.
 
 | | |
 |---|---|
-| [#8](https://github.com/humanagent/hermes-elevenlabs/issues/8) `text-to-dialogue` | Works on free (113,728 bytes, 7.0s, two voices). Lost on latency: first sound **+0.0s → ~+15.2s**, because a dialogue needs every reply before it can start. |
-| [#9](https://github.com/humanagent/hermes-elevenlabs/issues/9) TTS `/stream` | Verified 200. Superseded by `with-timestamps`, same two seconds plus the timings. |
-| [#13](https://github.com/humanagent/hermes-elevenlabs/issues/13) streaming the model | **469 turns ended in a suppress token.** Streaming means showing text from an agent that then says nothing. |
-| [#10](https://github.com/humanagent/hermes-elevenlabs/issues/10) `elevenlabs/examples` | A pass over all of it, with what this room would have to become for each to fit. |
+| `text-to-dialogue` | Works on free (113,728 bytes, 7.0s, two voices). Lost on latency: first sound **+0.0s → ~+15.2s**, because a dialogue needs every reply before it can start. |
+| TTS `/stream` | Verified 200. Superseded by `with-timestamps`, same two seconds plus the timings. |
+| streaming the model | **469 turns ended in a suppress token.** Streaming means showing text from an agent that then says nothing. |
+| `elevenlabs/examples` | A pass over all of it, with what this room would have to become for each to fit. |
 
 ## The agents
 
@@ -189,9 +190,27 @@ rather than a prompt. `SETUP.md` has the long version.
 
 ## Running it
 
+One container holds the three gateways and the room in front of them. Two keys
+and a port:
+
+```sh
+docker build -t voice-group-chat .
+docker run -p 3000:3000 \
+  -e OPENROUTER_API_KEY=... \
+  -e ELEVENLABS_API_KEY=... \
+  -v voice-group-chat:/data \
+  voice-group-chat
+```
+
+Then open `localhost:3000`. The volume is where the agents keep what they are —
+memory, drawn personas, session history — so it survives a rebuild; the code does
+not have to.
+
+To work on it, the same pieces run apart, so each can be restarted on its own:
+
 ```sh
 pnpm setup                             # writes .hermes/ with a config and a key
-# add a provider key + ELEVENLABS_API_KEY to .hermes/.env
+# add OPENROUTER_API_KEY + ELEVENLABS_API_KEY to .hermes/.env
 pnpm start                             # the runtime
 uv run python scripts/group_up.py      # Anna, Jordan, Pepe
 pnpm web                               # the room
