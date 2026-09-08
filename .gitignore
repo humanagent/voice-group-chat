@@ -22,3 +22,4 @@ group.json
 web/.next/
 web/next-env.d.ts
 .claude/worktrees/
+prep/
