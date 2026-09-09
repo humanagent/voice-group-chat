@@ -48,15 +48,21 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   return { starts: () => starts }
 }
 
-test("20 wins the challenge, asks for a name, and publishes to the global scoreboard", async ({ page }) => {
+test("20 wins the challenge, asks for a name, and publishes to the global scoreboard", async ({ page, hasTouch }) => {
   const round = await setup(page)
   await page.getByRole("textbox", { name: "Message the room" }).fill("Anna, ask everyone a question.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
   await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
   await expect(page.getByRole("dialog")).toBeVisible()
   await expect(page.getByLabel("20 of 20 replies")).toHaveText("20/20")
-  await expect(page.getByLabel("Your name")).toBeVisible()
-  await page.getByLabel("Your name").fill("Fabri")
+  const name = page.getByLabel("Your name")
+  // Exercise the real focus gesture, including the mobile prevent-scroll path.
+  // Verify input delivery before treating a disabled Publish button as a failure.
+  if (hasTouch) await name.tap()
+  else await name.click()
+  await expect(name).toBeFocused()
+  await name.fill("Fabri")
+  await expect(name).toHaveValue("Fabri")
   await page.getByRole("button", { name: "Publish score" }).click()
   await expect(page.getByText("Result published.")).toBeVisible()
   expect(round.starts()).toBe(1)
