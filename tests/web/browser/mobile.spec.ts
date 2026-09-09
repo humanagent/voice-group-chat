@@ -12,6 +12,18 @@ async function openRoom(page: Page) {
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
 }
 
+async function showLatest(page: Page) {
+  const scroller = page.locator(".room-conversation > div").first()
+  // Draft/notice resizing changes the available scroll area. Establish one
+  // explicit reading position instead of snapshotting a scheduler-dependent one.
+  await scroller.evaluate(async (node) => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    node.scrollTop = node.scrollHeight
+  })
+  await expect.poll(() => scroller.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop)).toBeLessThan(1)
+  await expect(page.getByRole("button", { name: "Jump to latest messages" })).toHaveCount(0)
+}
+
 for (const viewport of [
   { width: 320, height: 568 }, { width: 390, height: 844 },
   { width: 430, height: 932 }, { width: 844, height: 390 },
@@ -33,6 +45,7 @@ for (const viewport of [
       return { width, height }
     }))
     for (const target of targets) { expect(target.width).toBeGreaterThanOrEqual(44); expect(target.height).toBeGreaterThanOrEqual(44) }
+    await showLatest(page)
     if (info.project.name === "visual") await expect(page).toHaveScreenshot(`conversation-${viewport.width}x${viewport.height}.png`)
     else await page.screenshot({ path: info.outputPath("conversation.png") })
   })
@@ -54,6 +67,7 @@ test("keyboard-sized viewport keeps notices and a long draft reachable", async (
   await expect(box).toBeInViewport({ ratio: 1 })
   await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeInViewport({ ratio: 1 })
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true)
+  await showLatest(page)
   if (info.project.name === "visual") await expect(page).toHaveScreenshot("keyboard-offline.png")
   else await page.screenshot({ path: info.outputPath("keyboard-offline.png") })
   await page.setViewportSize({ width: 390, height: 844 })
@@ -69,6 +83,7 @@ test("iOS installation instructions fit without shifting the composer offscreen"
   await page.getByRole("button", { name: "Install the room" }).click()
   await expect(page.getByText("In Safari, tap Share, then “Add to Home Screen”.")).toBeVisible()
   await expect(page.getByRole("textbox", { name: "Message the room" })).toBeInViewport({ ratio: 1 })
+  await showLatest(page)
   if (info.project.name === "visual") await expect(page).toHaveScreenshot("install-help.png")
   else await page.screenshot({ path: info.outputPath("install-help.png") })
   await page.getByRole("button", { name: "Dismiss install instructions" }).click()
