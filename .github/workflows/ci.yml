@@ -72,7 +72,12 @@ jobs:
         run: pnpm build:test
 
       - name: Install browsers
-        run: pnpm exec playwright install --with-deps chromium webkit firefox
+        # --with-deps runs apt-get update over every source on the runner image.
+        # Google's Chrome mirror is not one Playwright needs, and it has failed
+        # this step with an index hash mismatch. Drop it before updating.
+        run: |
+          grep -l dl.google.com /etc/apt/sources.list.d/* 2>/dev/null | xargs -r sudo rm -f
+          pnpm exec playwright install --with-deps chromium webkit firefox
 
       - name: Browser tests
         run: pnpm test:e2e --workers=2
