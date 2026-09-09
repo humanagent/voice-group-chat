@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   width: "device-width", initialScale: 1, viewportFit: "cover",
-  // The installed app is a fixed surface: no pinch or double-tap zoom. Safari
-  // in the browser ignores this and keeps its own zoom, which is the right split.
-  maximumScale: 1, userScalable: false,
+  // Zoom stays enabled here: disabling it in the meta is an accessibility
+  // violation for the browser. The installed app locks it at runtime instead,
+  // in use-room-viewport.ts, where it is a fixed surface by design.
   themeColor: "#17181f", colorScheme: "dark", interactiveWidget: "resizes-content",
 }
 

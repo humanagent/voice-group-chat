@@ -19,7 +19,14 @@ export function useRoomViewport() {
     const root = document.documentElement
     root.dataset.roomViewport = "true"
     const standalone = matchMedia("(display-mode: standalone)")
-    const syncMode = () => { root.dataset.roomStandalone = String(standalone.matches || !!(navigator as Navigator & { standalone?: boolean }).standalone) }
+    const syncMode = () => {
+      const installed = standalone.matches || !!(navigator as Navigator & { standalone?: boolean }).standalone
+      root.dataset.roomStandalone = String(installed)
+      // Only the installed app is a fixed surface with no pinch or double-tap
+      // zoom. The browser keeps zoom, and its meta must not disable it.
+      const meta = document.querySelector<HTMLMetaElement>("meta[name=viewport]")
+      if (installed && meta && !meta.content.includes("maximum-scale")) meta.content = `${meta.content}, maximum-scale=1, user-scalable=no`
+    }
     syncMode()
     standalone.addEventListener("change", syncMode)
     let frame = 0
