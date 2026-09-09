@@ -56,6 +56,7 @@ export function useRoomViewport() {
         // this small-inset heuristic AFTER a real keyboard has been observed
         // and resize events stop, never to gate its opening/closing frames.
         const inset = window.innerHeight - (viewport?.height ?? window.innerHeight)
+        if (inset < 120) unpan()
         const panned = (viewport?.offsetTop ?? 0) >= 1
         const nearlyClosed = sawKeyboard && inset < 120 && !panned
         // Blur can arrive well before the final resize, especially on a busy
@@ -66,11 +67,24 @@ export function useRoomViewport() {
         trackingKeyboard = false
         sawKeyboard = false
         keyboardResized = false
+        unpan()
         schedule()
       }, delay)
     }
+    // Installed Safari pans the layout viewport up to reveal a focused input
+    // and does not pan it back when the keyboard closes: the fixed body has
+    // nothing to scroll, so the whole app stayed shifted up with the web view's
+    // own background showing beneath the composer. Put it back ourselves.
+    const unpan = () => {
+      if (viewport && viewport.scale !== 1) return
+      if ((viewport?.offsetTop ?? 0) >= 1 || window.scrollY >= 1) window.scrollTo(0, 0)
+    }
     const geometryChanged = () => {
       if (isEditing()) trackingKeyboard = true
+      // Never let the page pan vertically. The shell is sized to the visual
+      // viewport, so there is nothing to reveal by panning; snap back on every
+      // frame iOS tries, and counter whatever offset survives this event.
+      unpan()
       // A native focus pan may be painted before the next animation frame.
       // Correct its offset in this event, not a frame later (the visible bounce).
       cancelAnimationFrame(frame)
