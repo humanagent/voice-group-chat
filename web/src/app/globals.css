@@ -157,7 +157,12 @@ html { color-scheme: dark; background: #17181f; --room-rest-height: 100dvh; --ro
 body { margin: 0; background: #17181f; }
 /* Lock only chat routes: the transcript scrolls, never the document behind it.
    Absolute placement inside the fixed body follows iOS's visual viewport pan. */
-html[data-room-viewport="true"], html[data-room-viewport="true"] body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+/* The root and body take the rest height, never 100%. In the installed app
+   WebKit's initial containing block is the screen minus the status bar, so a
+   100% document came out 62px short; WebKit then shrank the window itself to
+   that document, clipping the composer above a strip of the web view's floor.
+   A document as tall as the screen keeps the window as tall as the screen. */
+html[data-room-viewport="true"], html[data-room-viewport="true"] body { height: var(--room-rest-height, 100%); overflow: hidden; overscroll-behavior: none; }
 html[data-room-viewport="true"] body { position: fixed; inset: 0; background: #17181f; }
 html[data-room-viewport="true"] .room-page { position: absolute; top: var(--room-viewport-top, 0px); left: 0; right: 0; }
 /* Standalone has no retracting browser toolbar. WebKit's dynamic/percentage
@@ -166,7 +171,7 @@ html[data-room-viewport="true"] .room-page { position: absolute; top: var(--room
 /* Both selectors, because the media query is true from the first paint while
    the attribute arrives with hydration: the app must fit before any script. */
 @media (display-mode: standalone) {
-  html { --room-rest-height: 100vh; }
+  html { --room-rest-height: 100vh; touch-action: pan-x pan-y; }
   .room-page { padding: 0; }
   .room-shell { width: 100%; border: 0; border-radius: 0; box-shadow: none; padding: var(--room-safe-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   .composer-wrap { padding-bottom: max(8px, calc(var(--room-safe-bottom) - var(--room-keyboard-inset, 0px))); }
@@ -364,3 +369,4 @@ html[data-room-standalone="true"] .composer-wrap { padding-bottom: max(8px, calc
 .score-value { flex-shrink: 0; font-size: 20px; font-variant-numeric: tabular-nums; }
 .score-value span { font-size: 12px; color: #bcb5c9; }
 .scoreboard-footnote { color: #bcb5c9; font-size: 12px; margin-top: 24px; line-height: 1.6; }
+

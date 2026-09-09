@@ -35,6 +35,7 @@ export function useRoomViewport() {
       if (trackingKeyboard && height < restingVisualHeight - 1) keyboardResized = true
       if (trackingKeyboard && inset > 120) sawKeyboard = true
       if (!editing && inset < 1 && (viewport?.offsetTop ?? 0) < 1) trackingKeyboard = false
+      if (!editing && inset < 1) unpan()
       // Follow EVERY keyboard frame, including the first few pixels and the
       // closing animation after blur. A threshold or CSS height transition here
       // makes the composer jump or trail the OS keyboard.
@@ -72,19 +73,18 @@ export function useRoomViewport() {
       }, delay)
     }
     // Installed Safari pans the layout viewport up to reveal a focused input
-    // and does not pan it back when the keyboard closes: the fixed body has
-    // nothing to scroll, so the whole app stayed shifted up with the web view's
-    // own background showing beneath the composer. Put it back ourselves.
+    // and does not always pan it back when the keyboard closes. Only once the
+    // keyboard is fully gone: never fight the pan while it is opening.
     const unpan = () => {
       if (viewport && viewport.scale !== 1) return
-      if ((viewport?.offsetTop ?? 0) >= 1 || window.scrollY >= 1) window.scrollTo(0, 0)
+      if ((viewport?.offsetTop ?? 0) >= 1 || window.scrollY >= 1) {
+        window.scrollTo(0, 0)
+        const scroller = document.scrollingElement
+        if (scroller && scroller.scrollTop) scroller.scrollTop = 0
+      }
     }
     const geometryChanged = () => {
       if (isEditing()) trackingKeyboard = true
-      // Never let the page pan vertically. The shell is sized to the visual
-      // viewport, so there is nothing to reveal by panning; snap back on every
-      // frame iOS tries, and counter whatever offset survives this event.
-      unpan()
       // A native focus pan may be painted before the next animation frame.
       // Correct its offset in this event, not a frame later (the visible bounce).
       cancelAnimationFrame(frame)

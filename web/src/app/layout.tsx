@@ -13,6 +13,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   width: "device-width", initialScale: 1, viewportFit: "cover",
+  // The installed app is a fixed surface: no pinch or double-tap zoom. Safari
+  // in the browser ignores this and keeps its own zoom, which is the right split.
+  maximumScale: 1, userScalable: false,
   themeColor: "#17181f", colorScheme: "dark", interactiveWidget: "resizes-content",
 }
 

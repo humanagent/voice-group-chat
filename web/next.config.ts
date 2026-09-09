@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
+  // Dev only: hydration scripts are refused to any other origin, which left the
+  // composer on "Loading…" through the simulator's 127.0.0.1 and ngrok.
+  allowedDevOrigins: ["127.0.0.1", "*.ngrok.app", "*.ngrok-free.app", "192.168.*.*"],
   async headers() {
     return [{
       source: "/sw.js",
