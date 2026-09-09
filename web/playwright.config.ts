@@ -21,7 +21,7 @@ export default defineConfig({
     { name: "firefox", testIgnore: /dictation\.spec\.ts/, use: { ...devices["Desktop Firefox"] } },
   ],
   webServer: {
-    command: "pnpm start -p 3100",
+    command: "node node_modules/next/dist/bin/next start -p 3100",
     url: "http://localhost:3100",
     reuseExistingServer: !process.env.CI,
     env: {

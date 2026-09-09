@@ -39,8 +39,6 @@ jobs:
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Pin fonts, browser and OS for reproducible pixel comparisons.
-    container: mcr.microsoft.com/playwright:v1.63.0-noble
     defaults:
       run:
         working-directory: web
@@ -73,11 +71,21 @@ jobs:
       - name: Build
         run: pnpm build:test
 
+      - name: Install browsers
+        run: pnpm exec playwright install --with-deps chromium webkit firefox
+
       - name: Browser tests
         run: pnpm test:e2e --workers=2
 
       - name: Visual regression tests
-        run: pnpm test:visual --workers=2
+        # Only pixel comparisons need pinned container fonts/OS. Keep Firefox on
+        # the runner, where its browser process and home directory have one owner.
+        run: >-
+          docker run --rm --ipc=host
+          -v "$GITHUB_WORKSPACE:/work" -w /work/web
+          mcr.microsoft.com/playwright:v1.63.0-noble
+          node node_modules/@playwright/test/cli.js test
+          --config playwright.visual.config.ts --workers=2
 
       - name: Browser review artifacts
         if: always()

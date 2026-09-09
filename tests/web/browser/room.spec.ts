@@ -85,7 +85,11 @@ test("incoming replies respect scroll position and clear requires confirmation",
   await box.fill("Anna, one more thought.")
   await box.press("Enter")
   const scroller = page.locator(".room-conversation > div").first()
-  await expect(page.getByText("Anna, one more thought.", { exact: true })).toBeVisible()
+  await expect(page.getByRole("article", { name: "You said" }).filter({ hasText: "Anna, one more thought." })).toBeVisible()
+  // Wait for the send-triggered resize/scroll cycle before simulating a reader
+  // scrolling away. Otherwise a pending ResizeObserver can consume the gesture.
+  await expect.poll(() => scroller.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop)).toBeLessThan(5)
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
   if (browserName === "chromium") {
     await scroller.hover()
     await page.mouse.wheel(0, -10000)
