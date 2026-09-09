@@ -1,7 +1,7 @@
-import { AxeBuilder, expect, test, type Page } from "../../../web/test-support/browser"
+import { AxeBuilder, expect, said, test, type Page } from "../../../web/test-support/browser"
 
 const sse = (text = "A small first step is a good place to start.") => [
-  { type: "thinking", agent: "Anna" }, { type: "said", agent: "Anna", text, audio: null },
+  { type: "thinking", agent: "Anna" }, said("Anna", text),
   { type: "quiet", agent: "Jordan" }, { type: "quiet", agent: "Pepe" }, { type: "done" },
 ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")
 

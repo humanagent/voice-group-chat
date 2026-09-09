@@ -1,4 +1,4 @@
-import { expect, test, type Page, AxeBuilder } from "../../../web/test-support/browser"
+import { expect, said, test, type Page, AxeBuilder } from "../../../web/test-support/browser"
 import type { ChallengeRun } from "../../../web/src/lib/challenge"
 
 const id = "88b4b3f3-7cbb-4870-afc6-0a11cd2b35e0"
@@ -7,7 +7,7 @@ function stream(run: ChallengeRun) {
   return [
     { type: "challenge", run: { ...run, score: 0, status: "running" } },
     ...Array.from({ length: run.score }, (_, index) => [
-      { type: "said", agent: ["Anna", "Jordan", "Pepe"][index % 3], text: `Reply ${index + 1}`, audio: null },
+      said(["Anna", "Jordan", "Pepe"][index % 3], `Reply ${index + 1}`),
       { type: "challenge", run: { ...run, score: index + 1, status: index + 1 === run.score ? run.status : "running" } },
     ]).flat(),
     { type: "challenge", run }, { type: "done" },
