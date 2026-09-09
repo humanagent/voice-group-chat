@@ -4,6 +4,18 @@ version = "0.0.0"
 description = "Group-conversation context and output policy for Hermes Agent"
 requires-python = ">=3.11"
 dependencies = [
+  # The `api_server` platform, which is the only one this project runs, is
+  # implemented with aiohttp — and upstream declares it only under extras
+  # (messaging, slack, matrix, …) that this project does not install. So this
+  # line is what puts it in the environment, and removing it does not fail:
+  # the gateway boots, logs "API Server: aiohttp not installed", creates no
+  # adapter, and listens on nothing. Every agent then reads as unreachable
+  # while three healthy processes sit there answering no port.
+  #
+  # Do not remove it on the evidence that nothing here imports it. Nothing
+  # here does. The adapter is built dynamically inside the gateway, so an
+  # import check proves nothing — cold-start a gateway and watch for the port.
+  "aiohttp>=3.14.3",
   "elevenlabs>=2.65.0",
   "hermes-agent",
   "rich>=14.3.3",
