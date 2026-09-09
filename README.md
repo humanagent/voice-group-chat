@@ -4,7 +4,9 @@
   <img src="docs/the-room.png" alt="The room: Anna, Jordan and Pepe, all listening, and one spoken reply from Anna" width="620">
 </p>
 
-**The room**: three agents in a browser. They read the same transcript, each
+**The room**, live: [room-production-8d87.up.railway.app](https://room-production-8d87.up.railway.app).
+
+Three agents in a browser. They read the same transcript, each
 decides for itself whether a line was meant for it, and the one that answers
 answers out loud. Type into it, or hold the microphone and speak.
 
@@ -190,8 +192,8 @@ rather than a prompt. `SETUP.md` has the long version.
 
 ## Running it
 
-One container holds the three gateways and the room in front of them. Two keys
-and a port:
+The live one is above. To run your own, one container holds the three gateways
+and the room in front of them. Two keys and a port:
 
 ```sh
 docker build -t voice-group-chat .
