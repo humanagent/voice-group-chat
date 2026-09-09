@@ -8,9 +8,9 @@ import { defineConfig } from "vitest/config"
  * is.
  */
 export default defineConfig({
-  resolve: { alias: { "@": resolve(__dirname, "src") } },
+  resolve: { alias: { "@": resolve(import.meta.dirname, "src") } },
   test: {
-    include: [resolve(__dirname, "../tests/web/**/*.test.ts")],
+    include: [resolve(import.meta.dirname, "../tests/web/**/*.test.ts")],
     environment: "node",
   },
 })

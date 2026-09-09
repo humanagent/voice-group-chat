@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import type { AgentState } from "@/components/ui/orb"
 import { SoftOrb } from "@/components/soft-orb"
+
+type AgentState = null | "thinking" | "listening" | "talking"
 
 export function Bubble({ name, agentState, className = "relative h-full w-full", getOutputVolume }: {
   name: string; agentState?: AgentState; live?: boolean; className?: string;

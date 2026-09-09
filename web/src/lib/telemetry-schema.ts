@@ -3,6 +3,10 @@ export const metricNames = [
   "long_task", "room_ready", "first_reply", "round_duration",
   "runtime_error", "unhandled_rejection", "room_error", "stream_error",
   "speech_error", "pwa_error",
+  "dictation_start", "dictation_token", "dictation_session", "dictation_audio_ready", "dictation_ready",
+  "dictation_first_text", "dictation_render", "dictation_update_gap_max", "dictation_updates", "dictation_revisions",
+  "dictation_finalize", "dictation_complete", "dictation_cancel", "dictation_error",
+  "dictation_connect_timeout", "dictation_finalize_timeout", "dictation_disconnect",
 ] as const
 
 export type MetricName = (typeof metricNames)[number]

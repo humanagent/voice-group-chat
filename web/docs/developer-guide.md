@@ -1,0 +1,157 @@
+# Developing and diagnosing the room
+
+This frontend is an integration example, not a production multi-tenant service.
+The useful contract is explicit: the UI owns interaction state, the recording
+controller owns capture lifetime, the server keeps credentials, and tests own
+their simulated services. You can verify the frontend without agent gateways
+or an ElevenLabs account.
+
+## First successful check — no credentials
+
+Prerequisites: Node.js 22 and pnpm 10.23.0. From the repository root:
+
+```bash
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web exec playwright install chromium
+pnpm --dir web check
+```
+
+`check` runs lint, type-checks application **and test** code, runs the unit suite, builds
+the production app, then starts the browser-test server on port 3100. It shuts
+that server down afterward. Tests intercept agent and speech routes and the
+ElevenLabs WebSocket; the placeholder key in `playwright.config.ts` only enables
+voice controls. Do not replace it with a real key. Port 3100 must be available.
+
+For a narrower loop:
+
+```bash
+pnpm --dir web test -- dictation.test.ts
+pnpm --dir web test:e2e -- dictation.spec.ts --project=desktop
+```
+
+The browser command uses the most recent production build; rebuild after a UI
+change. See [Running it](../README.md#running-it) to use real agent gateways and
+speech. `pnpm start` at the **root** starts Hermes; `pnpm --dir web start` starts
+the **web server**. These are intentionally different processes.
+
+## A reading path through the code
+
+| Responsibility | Entry point | Boundary to preserve |
+| --- | --- | --- |
+| Server configuration | [`app/page.tsx`](../src/app/page.tsx) | Only agent names and a speech-enabled boolean reach the client; never API keys. |
+| Conversation orchestration | [`components/room.tsx`](../src/components/room.tsx) | Serialize sends; distinguish interrupted/uncertain delivery; do not retry implicitly. |
+| Draft and input rendering | [`components/composer.tsx`](../src/components/composer.tsx) | Partial transcription updates stay here, outside the conversation render tree. |
+| React recording lifecycle | [`hooks/use-dictation.ts`](../src/hooks/use-dictation.ts) | Adapts SDK/token calls and cleans up on unmount; reports only status transitions to the room. |
+| Recording state machine | [`lib/dictation.ts`](../src/lib/dictation.ts) | Owns exactly one socket/microphone, flushes before commit, ignores stale callbacks. Dependencies are injectable for tests. |
+| Credential exchange | [`app/api/scribe/route.ts`](../src/app/api/scribe/route.ts) | Server-only key, single-use token, no-store responses, bounded upstream wait. |
+| Metrics contract | [`lib/telemetry-schema.ts`](../src/lib/telemetry-schema.ts) | Numeric allowlist, bounded values, no transcript payloads. |
+| Browser transport | [`lib/telemetry.ts`](../src/lib/telemetry.ts) | Bounded buffers, best-effort batching; diagnostics must not block a conversation. |
+
+### Recording lifecycle
+
+```text
+idle → connecting → listening → finishing → idle
+       │             │           │
+       └─────────────┴───────────┴── cancel/error/timeout → idle
+```
+
+`connecting` ends only after both `SESSION_STARTED` and the first successfully
+sent microphone chunk. A socket opening does not prove permission or worklet
+setup succeeded. Setup has a 15-second deadline, including token fetch.
+
+Partial and pre-commit final events replace the current segment; only a
+`COMMITTED_TRANSCRIPT` appends it. Timestamp variants are not another segment.
+Identical sentences in different segments are valid and must not be deduplicated
+by text. The SDK may also commit long segments automatically.
+
+The room uses manual commit for its explicit Send action. On Send, it disables
+the capture track, lets two SDK audio chunks drain, then calls `commit()`. The
+installed SDK batches 4096 samples at 16kHz (~256ms); draining allows buffered
+speech to leave before the commit marker. No raw audio is inspected or logged.
+This uses public SDK methods; a browser test runs the actual capture/worklet
+path so SDK changes that break the boundary are visible.
+
+Only an acknowledged commit completes the send. After six seconds without
+finalization, the controller closes capture and returns the received text as a
+recoverable draft. It cannot recover words the provider never returned. There
+is no automatic replay or reconnect that could send duplicate messages.
+
+This follows ElevenLabs' [transcript and commit semantics](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/transcripts-and-commit-strategies).
+Manual commit is a deliberate choice for this press-to-record / press-to-send
+interaction, not a general recommendation for an always-on voice assistant.
+
+## Diagnosing transcription
+
+1. Open `http://localhost:3000/?perf=1`. Close the panel while speaking if needed.
+2. Record a short phrase, then a phrase long enough to wrap. Tap Send immediately
+   after the last word. Reopen diagnostics and download the report.
+3. Compare the recording's timings below. Its random `id` matches `requestId`
+   in the server's `speech.token` log. Reproduce one recording at a time: the
+   local history is bounded, and the panel shows the latest recording only.
+
+| Metric | Measures | Does **not** prove |
+| --- | --- | --- |
+| `dictation_token` | Start click to token response | Microphone access or socket readiness |
+| `dictation_session` | Start click to provider session event | Actual audio capture |
+| `dictation_audio_ready` / `dictation_ready` | First sent audio / both prerequisites ready | Recognition accuracy |
+| `dictation_first_text` | Start click to first nonempty transcript | Pure model latency; it includes setup and any time before the user speaks |
+| `dictation_render` | Provider text update to React layout commit, sampled at most once per second | Paint timing or a field INP score |
+| `dictation_update_gap_max` | Longest interval between changed transcripts, emitted when recording ends | A network stall; silence also creates gaps |
+| `dictation_updates` / `dictation_revisions` | Changed texts / partials that revise an earlier prefix | Recognition accuracy; corrections are normal |
+| `dictation_finalize` | Send click to acknowledged final commit | Time to agent response |
+
+Lifecycle counts include `dictation_start`, `dictation_complete` and
+`dictation_cancel`. Errors have separate names: `dictation_error`,
+`dictation_disconnect`, `dictation_connect_timeout`, `dictation_finalize_timeout`.
+Missing metrics stay missing; a failed recording is never labeled successful.
+
+For example, this is the **shape** of a server log, not a benchmark:
+
+```json
+{"event":"speech.token","version":1,"requestId":"<random UUID>","outcome":"provider_error","upstreamStatus":429,"durationMs":120}
+```
+
+`outcome` is `ready`, `not_configured`, `provider_error`, `invalid_response`,
+`network_error` or `cancelled`. An upstream timeout is a network error. The
+frontend metric batch uses `event: "frontend.performance"` and `version: 1`.
+
+If token timing is slow, start at the server/upstream request. If a session
+starts without audio readiness, check browser permission and audio-worklet
+support. If text arrives promptly but render timing or frame intervals grow,
+profile the browser. If rendering is fast but transcript updates are sparse,
+investigate audio, network and provider behavior before changing animations.
+
+Diagnostics are best effort, not an audit log: batches flush every 15 seconds
+and on page hide, with at most 40 pending and 120 local samples. Nothing here
+provisions retention, dashboards or alerts. Connect the structured server log
+stream to your hosting platform's log drain if you need persistent analysis.
+
+## Changes worth testing
+
+- Recording lifecycle: [`dictation.test.ts`](../../tests/web/dictation.test.ts)
+  covers final-word flush, duplicate events, cancellation, deadlines and recovery.
+- Credential boundary: [`scribe-route.test.ts`](../../tests/web/scribe-route.test.ts)
+  covers missing configuration, malformed responses, provider/network failures
+  and redaction.
+- Browser integration: [`dictation.spec.ts`](../../tests/web/browser/dictation.spec.ts)
+  runs the SDK with a fake microphone and replayed WebSocket events on desktop
+  and a mobile viewport. It checks one capture stream, ended tracks, final-word
+  dispatch, recovery and log privacy. No provider call is made.
+- Existing [`room.spec.ts`](../../tests/web/browser/room.spec.ts) covers chat,
+  scroll behavior, IME, accessibility, PWA/offline and draft persistence.
+
+Browser artifacts live in `web/test-results/` and are ignored by Git. CI retains
+failure artifacts for seven days. A mocked browser test proves integration
+behavior, not real recognition quality, live provider latency or physical
+iPhone/Safari behavior. Test those separately with consented speech; do not
+commit recordings, credentials or real conversation traces.
+
+## Deployment boundary
+
+Keep this shared-room example behind access control before inviting untrusted
+traffic. The API routes are not a tenant/authentication/rate-limiting layer;
+agent credentials can dispatch terminal-capable work. Do not publish a personal
+agent gateway or add client-visible provider keys to make a demo easier to run.
+Telemetry excludes content, but speech still goes to ElevenLabs and chat goes
+to the configured agents. Recovered text is intentionally saved in the local
+draft: see [storage behavior](../README.md#chat-experience).

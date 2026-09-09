@@ -8,7 +8,10 @@
 
 Three agents in a browser. They read the same transcript, each
 decides for itself whether a line was meant for it, and the one that answers
-answers out loud. Type into it, or hold the microphone and speak.
+answers out loud. Type into it, or tap the microphone to record, then tap Send.
+
+For the frontend code walkthrough, credential-free tests and observability
+workflow, see the [developer guide](web/docs/developer-guide.md).
 
 Built as customer zero. Every number below came off this project's own
 free-plan key.
@@ -30,7 +33,7 @@ free-plan key.
 
 ```mermaid
 flowchart LR
-  mic["🎙 hold to speak"] -->|scribe_v2_realtime| say
+  mic["🎙 tap to record, then send"] -->|scribe_v2_realtime| say
   type["⌨ type"] --> say["POST /api/say"]
 
   say --> anna["Anna"]
@@ -151,12 +154,15 @@ ways: the addressing check collapses held letters, and she is spelled Anna now.
 Invisible in any text-only test.
 
 Measured 2026-08-29: first partial in 3-4s, full sentence recovered, on
-Rioplatense Spanish.
+Rioplatense Spanish. These are historical live measurements, not a promise for
+the current UI or another device. The current recording path exposes setup,
+first-text, render and finalization timings in `/?perf=1`, and waits for final
+text before dispatching. See the [metric definitions](web/docs/developer-guide.md#diagnosing-transcription).
 
 ## ElevenLabs UI
 
 `Orb`, `LiveWaveform`, `Conversation`, `Message`, `Response` and the Scribe hook
-came from the registry. Three things had to change, all the same kind of problem:
+came from the registry. The original integration needed three changes:
 correct in a demo, load-bearing here.
 
 | | |
@@ -164,6 +170,11 @@ correct in a demo, load-bearing here.
 | `useTexture` suspends on a CDN fetch | Three empty holes where the agents go, for as long as `storage.googleapis.com` takes. 45KB, served from `/public` now. |
 | `THREE.WebGLRenderer: Context Lost.` ×3 | A capped resource the browser reclaims when it likes. An SVG orb sits underneath, paints on frame one, cannot be lost. |
 | Two scroll springs, one element | `use-stick-to-bottom` and the room both eased toward `scrollHeight`, a target that moves mid-flight. Both instant now, so they cannot disagree. |
+
+The current stage uses CSS gradients instead of WebGL, and the composer owns
+its recording lifecycle directly through the SDK. The old waveform opened a
+second microphone stream; the recording indicator now shares no capture work.
+The table above records the original findings, not the current render path.
 
 ## Evaluated, not taken
 

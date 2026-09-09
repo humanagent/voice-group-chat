@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "paths": {
+      "@/*": ["./src/*"],
+      "vitest": ["./node_modules/vitest"],
+      "@elevenlabs/client": ["./node_modules/@elevenlabs/client"]
+    }
+  },
+  "include": ["../tests/web/**/*.ts", "test-support/**/*.ts"],
+  "exclude": ["node_modules"]
+}

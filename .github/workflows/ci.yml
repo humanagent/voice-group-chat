@@ -59,6 +59,9 @@ jobs:
       - name: Types
         run: pnpm typecheck
 
+      - name: Frontend lint
+        run: pnpm lint
+
       - name: Test
         # The web tests live in `tests/web/` with the others, so this reaches
         # up out of the working directory; vitest.config.mts knows where they
@@ -67,3 +70,17 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pnpm test:e2e
+
+      - name: Browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failures
+          path: web/test-results/
+          retention-days: 7

@@ -8,11 +8,16 @@ spoke, who stayed quiet.
 Next.js 16, React 19, ElevenLabs UI on top of shadcn. The ElevenLabs decisions
 behind it are in the [root README](../README.md).
 
+For a code walkthrough, credential-free verification and a transcription
+troubleshooting recipe, start with the [developer guide](docs/developer-guide.md).
+
 ## Running it
 
-The group has to be up first. From the repo root:
+Use Node.js 22 and pnpm 10.23.0 (the version pinned in `packageManager`).
+Install the frontend dependencies once, then start the group. From the repo root:
 
 ```bash
+pnpm --dir web install --frozen-lockfile
 pnpm setup                             # once
 pnpm start                             # the single runtime
 uv run python scripts/group_up.py      # Anna, Jordan, Pepe
@@ -100,10 +105,19 @@ serialized. A failed or incomplete stream is visibly marked and never retried
 automatically, since the server may have received it. “Use as draft” lets you
 review it before sending again. Clearing the shared room requires confirmation.
 
+Microphone input lives inside the composer: partial words do not rerender the
+room or its messages. There is only one microphone stream, owned by the SDK;
+the recording indicator does not open another one. Long transcripts wrap and
+follow their newest line unless you scroll back. Send mutes capture, drains
+buffered audio, requests a final commit and waits for it before dispatching.
+Timeouts and disconnects recover received text to the draft for explicit review,
+never silently send an incomplete partial.
+
 The mobile layout accounts for safe areas and the visual viewport so the
 composer remains available when the keyboard opens. Drafts are stored on the
-current device under `the-room-draft`; submitted messages and transcripts are
-not stored in localStorage.
+current device under `the-room-draft`. Conversation history and successful
+recordings are not stored there; a recording recovered after an error becomes
+part of that local draft. Shared-device users should clear drafts when finished.
 
 ## Install and offline behavior
 
@@ -143,6 +157,11 @@ are collected in ordinary visits too; the panel is optional. The app reports:
 - Room opening, first reply and completed round durations; numeric counts of
   runtime, promise, connection, speech and PWA failures. First-reply duration is
   only reported when an agent actually replies; quiet rounds do not invent one.
+- Transcription token/session/audio readiness, first text, sampled render delay,
+  finalization, update/revision counts and longest update gap. Failed/cancelled
+  recordings have explicit outcomes. A random per-recording ID connects these
+  samples to the server's `speech.token` JSON log. See the
+  [metric definitions and troubleshooting flow](docs/developer-guide.md#diagnosing-transcription).
 
 Missing values remain “Awaiting sample.” Vitals are finalized by the browser;
 INP needs interaction and long-task support varies. Colored vital readings use
@@ -158,6 +177,10 @@ a durable analytics database, dashboards or alerts. Delivery is best effort;
 memory is bounded to 120 local samples and 40 pending events. Export only
 contains numeric samples, relative timing and browser-generated metric IDs;
 message text, audio, agent names, URLs and error stacks are never included.
+Token-route logs contain only a random request ID, an allowlisted outcome,
+upstream HTTP status and duration. Raw provider errors are not returned or logged.
+These guarantees cover application diagnostics; provider processing/retention
+is governed by your ElevenLabs account, not this telemetry endpoint.
 
 The implementation follows Next's
 [client instrumentation](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client)
@@ -171,12 +194,17 @@ pnpm typecheck
 pnpm build
 pnpm exec playwright install chromium  # once
 pnpm test:e2e                  # production app on port 3100
+pnpm check                     # lint, types (including tests), unit tests, build, browsers
 ```
 
 Browser tests cover desktop and a mobile viewport, drafts across reloads,
 offline navigation, cache exclusions, message ordering, interrupted streams,
 IME input, scrolling, reduced motion and automated accessibility checks.
 Screenshots and traces are written to `web/test-results/` (ignored by Git).
-Agent, microphone and speech requests are mocked in these tests; real voice
-quality, physical iOS keyboard behavior and field performance still need device
-testing. A local trace is not a field performance guarantee.
+The transcription tests use Chromium's fake microphone through the real SDK
+audio worklet, with a mocked provider WebSocket. They verify capture cleanup,
+final-word delivery, recovery, long-text visibility and privacy-safe diagnostics.
+They make no paid API calls. CI runs the same desktop/mobile browser suite and
+uploads failure screenshots and traces. Real speech recognition quality,
+physical iOS keyboard behavior and field performance still need device testing.
+A local trace is not a field performance guarantee.

@@ -8,11 +8,10 @@ import { Conversation, ConversationContent, ConversationScrollButton } from "@/c
 import { Stage, type Phase } from "@/components/stage"
 import { usePwa } from "@/hooks/use-pwa"
 import { useRoomViewport } from "@/hooks/use-room-viewport"
-import { CommitStrategy, useScribe } from "@/hooks/use-scribe"
-import { worthSending } from "@/lib/listening"
 import { Voice } from "@/lib/speaking"
 import { roomEvents } from "@/lib/room-stream"
 import { record, sampleFrames } from "@/lib/telemetry"
+import type { DictationState } from "@/lib/dictation"
 
 type Pending = { id: string; text: string }
 
@@ -24,7 +23,8 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
   const [phase, setPhase] = useState<Record<string, Phase>>({})
   const [lines, setLines] = useState<Line[]>([])
   const [busy, setBusy] = useState(false)
-  const [listening, setListening] = useState(false)
+  const [recording, setRecording] = useState<DictationState["status"]>("idle")
+  const listening = recording !== "idle"
   const [muted, setMuted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [installHelp, setInstallHelp] = useState(false)
@@ -107,30 +107,6 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
     setPhase({})
   }, [])
 
-  const onError = useCallback(() => { setError("The microphone couldn’t connect. You can keep typing or try again."); setListening(false); record("speech_error", 1) }, [])
-  const scribe = useScribe({ modelId: "scribe_v2_realtime", commitStrategy: CommitStrategy.VAD, vadThreshold: 0.6, minSpeechDurationMs: 200, minSilenceDurationMs: 500, vadSilenceThresholdSecs: 0.7, onError })
-  const heard = [...scribe.committedTranscripts.map((part) => part.text.trim()), scribe.partialTranscript.trim()].filter(Boolean).join(" ")
-
-  async function listen() {
-    setError(null)
-    hush()
-    scribe.clearTranscripts()
-    try {
-      const response = await fetch("/api/scribe", { method: "POST" })
-      const data = await response.json()
-      if (!response.ok || !data.token) throw new Error("Microphone unavailable")
-      await scribe.connect({ token: data.token, microphone: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-      setListening(true)
-    } catch { onError(); scribe.disconnect() }
-  }
-
-  function discard() { scribe.disconnect(); scribe.clearTranscripts(); setListening(false) }
-  function sendRecording() {
-    discard()
-    if (worthSending(heard)) { if (!submit(heard)) restore(heard) }
-    else setError("No words came back yet. Try again and give it a moment.")
-  }
-
   function delivery(id: string, status: Line["delivery"]) {
     setLines((current) => current.map((line) => line.id === id && line.delivery !== status ? { ...line, delivery: status } : line))
   }
@@ -212,7 +188,9 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
   const talking = names.find((name) => phase[name] === "speaking")
   const reading = talking ? lines.findLastIndex((line) => line.speaker === talking) : -1
   const thinking = names.filter((name) => phase[name] === "thinking")
-  const status = !pwa.online ? "Offline" : opening ? "Connecting…" : clearing ? "Clearing…" : !chat ? "Disconnected" : listening ? "Recording…" : busy ? "Responding…" : null
+  const status = !pwa.online ? "Offline" : opening ? "Connecting…" : clearing ? "Clearing…" : !chat ? "Disconnected"
+    : recording === "connecting" ? "Connecting microphone…" : recording === "finishing" ? "Finishing transcription…"
+    : listening ? "Recording…" : busy ? "Responding…" : null
 
   return (
     <main className="room-page">
@@ -236,9 +214,9 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
         </Conversation>
         {error && <div className="room-notice" role="alert"><span>{error}</span>{!chat && <button onClick={() => { setOpening(true); setError(null); void open() }} disabled={opening || !pwa.online}><RefreshCwIcon size={14} /> Reconnect</button>}<button className="notice-dismiss" onClick={() => setError(null)} aria-label="Dismiss notification"><XIcon size={14} /></button></div>}
         {!pwa.online && <div className="room-notice"><WifiOffIcon size={14} /><span>You’re offline. You can keep writing; send when you’re back.</span></div>}
-        {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || opening || clearing || scribe.status === "connecting"} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} /> Update</button></div>}
+        {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || opening || clearing} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} /> Update</button></div>}
         {installHelp && <div className="room-notice" role="status"><span>In Safari, tap Share, then “Add to Home Screen”.</span><button onClick={() => setInstallHelp(false)} aria-label="Dismiss install instructions"><XIcon size={14} /></button></div>}
-        <Composer ready={!!chat && !opening && !clearing} online={pwa.online} busy={busy} speech={speech} connecting={scribe.status === "connecting"} listening={listening} heard={heard} submit={submit} listen={() => void listen()} sendRecording={sendRecording} discard={discard} stop={hush} handle={composer} />
+        <Composer ready={!!chat && !opening && !clearing} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} />
         {clearing && <div className="clearing-overlay" role="status"><LoaderCircleIcon className="animate-spin" size={24} />Clearing…</div>}
       </section>
       <dialog ref={confirmClear} className="room-dialog" aria-labelledby="clear-title"><h2 id="clear-title">Clear the room?</h2><p>This clears the shared conversation for every agent. It can’t be undone.</p><div><button onClick={() => confirmClear.current?.close()}>Keep the conversation</button><button className="confirm-button" onClick={() => void clear()}>Clear the room</button></div></dialog>
