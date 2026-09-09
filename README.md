@@ -13,6 +13,14 @@ answers out loud. Type into it, or tap the microphone to record, then tap Send.
 For the frontend code walkthrough, credential-free tests and observability
 workflow, see the [developer guide](web/docs/developer-guide.md).
 
+**Conversation challenge:** tap the trophy for the rules and a 0/20 counter,
+then Play to activate the chat's existing microphone.
+The room stays the same; each new agent reply adds a point. Reach 20 to win,
+then optionally enter a nickname in the result modal. `/challenge` and the
+leaderboard button show the global ranking. The ranking contains only names
+and scores; conversation content remains in the shared room. See the [rules, storage and security
+boundary](web/docs/challenge.md) before opening it to untrusted traffic.
+
 Built as customer zero. Every number below came off this project's own
 free-plan key.
 

@@ -74,7 +74,7 @@ test("queued messages serialize and an interrupted stream is recoverable", async
   await expect(page.getByRole("button", { name: "Stop the room" })).toHaveCount(0)
 })
 
-test("incoming replies respect scroll position and clear requires confirmation", async ({ page, browserName }) => {
+test("incoming replies respect scroll position and room navigation does not clear context", async ({ page, browserName }) => {
   await mockRoom(page, Array.from({ length: 45 }, (_, i) => ({ speaker: i % 2 ? "Anna" : "you", text: `Earlier message ${i}. A thought worth keeping in view.`, spoken: false })))
   let release: () => void = () => {}
   const held = new Promise<void>((resolve) => { release = resolve })
@@ -104,10 +104,12 @@ test("incoming replies respect scroll position and clear requires confirmation",
   await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBeLessThan(100)
   await page.getByRole("button", { name: "Jump to latest messages" }).click()
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "Clear the room", exact: true }).click()
-  await expect(page.getByRole("dialog")).toBeVisible()
-  await page.getByRole("button", { name: "Keep the conversation" }).click()
+  let cleared = false
+  page.on("request", (request) => { if (request.method() === "DELETE") cleared = true })
+  await expect(page.getByRole("button", { name: "Clear the room", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Room mode", exact: true }).click()
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
+  expect(cleared).toBe(false)
 })
 
 test.describe("Service worker integration", () => {

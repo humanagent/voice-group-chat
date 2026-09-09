@@ -91,11 +91,17 @@ returns 404, and the room falls back to marking the line as spoken.
 ## Chat experience
 
 The stage uses layered CSS gradients and transform animations. It does not load
-Three.js or allocate WebGL contexts. Only the speaking orb samples audio, and
-that loop pauses in hidden tabs and respects reduced motion. Messages are
+Three.js or allocate WebGL contexts. Only the speaking orb samples audio, with
+elapsed-time easing so its response is independent of the display refresh rate.
+The orb and text-highlight loops pause in hidden tabs and respond immediately
+to reduced-motion changes, without changing playback. Messages are
 memoized; typing updates the composer without rendering the transcript. Plain
 text can follow the voice without swapping the paragraph's layout. Markdown
 keeps a stable rendered tree throughout playback.
+
+Challenge dialogs enter with a short opacity/scale transition; the leaderboard
+and existing recording surface fade in. Reduced motion disables these effects.
+Entrances never animate keyboard/composer geometry or delay Play and dismissal.
 
 The transcript follows replies while you are at the bottom. Scrolling up lets
 you read in place; the “Jump to latest messages” button brings you back. New
@@ -118,6 +124,12 @@ composer remains available when the keyboard opens. Drafts are stored on the
 current device under `the-room-draft`. Conversation history and successful
 recordings are not stored there; a recording recovered after an error becomes
 part of that local draft. Shared-device users should clear drafts when finished.
+
+The initial HTML keeps the input disabled until its browser handlers are ready,
+so typing during a slow script download cannot be silently lost. This guard is
+independent of the room connection: once interactive, drafts remain editable
+while connecting or offline. The cached offline editor follows the same rule,
+even if draft storage is unavailable. This adds no footer spacer or layout transition.
 
 ## Install and offline behavior
 
@@ -254,12 +266,24 @@ update and draft recovery. Real service-worker offline tests run on Chromium:
 
 Visual assertions cover 320–430px portrait screens, 844px landscape, short tablet
 windows, multiline drafts, keyboard-height/offline notices and iOS install help.
+Installed-PWA fixtures include nonzero safe areas and a stale visual viewport:
+the footer consumes the home-indicator inset once, then only 8px above the keyboard.
+First-tap focus uses `preventScroll` inside the touch gesture (without moving or
+hiding the input); subsequent selection, swipes and pinch zoom stay native.
+The transcript has one scroll surface, clipped to its own stacking context;
+the in-flow footer sits above it so scrolling to the end cannot cover the input.
+The standalone resting surface uses `100vh`, while actual keyboard resize frames
+use `visualViewport`. Focus alone never adopts a short stale viewport height.
+This handles WebKit's documented [installed-app height discrepancy](https://bugs.webkit.org/show_bug.cgi?id=254868);
+it still needs confirmation on a physical installed iPhone PWA.
 `pnpm test:visual` compares committed screenshots in the pinned
 `mcr.microsoft.com/playwright:v1.63.0-noble` Linux/amd64 environment used by CI.
 Do not update baselines on macOS: system fonts differ. Review the images before
 accepting changes with `pnpm test:visual --update-snapshots` in that container.
-`ROOM_TEST_URL` can point visual tests at an already-running fixture server;
-normal runs start the isolated port-3100 server automatically.
+`ROOM_TEST_URL` can point visual tests at an already-running HTTPS/localhost
+fixture server. Plain HTTP LAN/Docker hostnames are not secure browser contexts
+and cannot exercise voice/UUID APIs. Prefer the default isolated port-3100
+server inside the container, which starts automatically without credentials.
 
 CI uploads screenshots/traces as `browser-review`, including successful runs.
 After testing, use `pnpm build && pnpm start` for a normal local build (without
