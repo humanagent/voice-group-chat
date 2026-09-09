@@ -5,7 +5,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "vitest": ["./node_modules/vitest"],
-      "@elevenlabs/client": ["./node_modules/@elevenlabs/client"]
+      "@elevenlabs/client": ["./node_modules/@elevenlabs/client"],
+      "@elevenlabs/elevenlabs-js": ["./node_modules/@elevenlabs/elevenlabs-js"]
     }
   },
   "include": ["../tests/web/**/*.ts", "test-support/**/*.ts"],

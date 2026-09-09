@@ -1,5 +1,7 @@
 import { agents } from "@/lib/agents"
-import { key, TTS_MODEL } from "@/lib/elevenlabs"
+import { ElevenLabsError } from "@elevenlabs/elevenlabs-js"
+
+import { client, key, TTS_MODEL } from "@/lib/elevenlabs"
 import { caller, limiter } from "@/lib/rate-limit"
 import { sameOrigin } from "@/lib/same-origin"
 import { grantAllows } from "@/lib/speech-grant"
@@ -91,53 +93,57 @@ export async function GET(request: Request) {
   }
 
   const voice = voiceFor(agent, group)
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voice}/with-timestamps`,
-    {
-      method: "POST",
-      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ text: spoken, model_id: TTS_MODEL }),
-    },
-  ).catch(() => null)
-
-  if (!res?.ok || !res.body) {
-    // A reply you can read is worth more than one you can hear, so this never
-    // fails the turn — the client plays nothing and the room carries on.
-    const detail = res ? await res.text().catch(() => "") : "could not reach elevenlabs"
-    return Response.json(
-      { error: detail.slice(0, 200) || `elevenlabs said ${res?.status}` },
-      { status: 502 },
-    )
-  }
 
   // Held whole, which this endpoint does anyway — there is no streaming
   // variant of the timings, and there was nothing to stream. Measured on a
   // 211-character reply, generating the whole clip took 2.3s against 1.9s to
   // the first byte of the stream, a difference inside the run-to-run variance.
   //
-  // The audio comes back base64 in the JSON, a third larger than the bytes.
-  // Worth it: the alternative is a second request for the timings, against an
-  // endpoint that would synthesise the line a second time to produce them.
-  const data = (await res.json().catch(() => null)) as {
-    audio_base64?: string
-    alignment?: {
-      characters?: string[]
-      character_start_times_seconds?: number[]
-    }
-  } | null
+  // The audio comes back base64, a third larger than the bytes. Worth it: the
+  // alternative is a second request for the timings, against an endpoint that
+  // would synthesise the line a second time to produce them.
+  let clip
+  try {
+    clip = await client(apiKey).textToSpeech.convertWithTimestamps(
+      voice,
+      { text: spoken, modelId: TTS_MODEL },
+      // One retry, not the SDK's default of two. This sits inside a turn
+      // somebody is waiting through, and a third attempt costs more time than
+      // the audio is worth by the time it would arrive.
+      { maxRetries: 1, timeoutInSeconds: 30, abortSignal: request.signal },
+    )
+  } catch (failure) {
+    // A reply you can read is worth more than one you can hear, so this never
+    // fails the turn — the client plays nothing and the room carries on.
+    //
+    // The provider's own body is never returned or logged; it can carry the
+    // submitted text back. The request id is what a support conversation
+    // actually needs, and it identifies the call rather than describing it.
+    const known = failure instanceof ElevenLabsError
+    console.warn(JSON.stringify({
+      event: "speech.synthesis_failed",
+      version: 1,
+      upstreamStatus: known ? failure.statusCode : undefined,
+      upstreamRequestId: known ? failure.requestId : undefined,
+    }))
+    return Response.json(
+      { error: known ? `elevenlabs said ${failure.statusCode ?? "nothing"}` : "could not reach elevenlabs" },
+      { status: 502 },
+    )
+  }
 
-  if (!data?.audio_base64) {
+  if (!clip.audioBase64) {
     return Response.json({ error: "no audio in response" }, { status: 502 })
   }
 
   return Response.json(
     {
-      audio: data.audio_base64,
+      audio: clip.audioBase64,
       // The characters as ElevenLabs read them, and when each one begins.
       // Sent rather than inferred from the text: what it was given and what it
       // ended up saying are not always the same string.
-      chars: data.alignment?.characters ?? [],
-      starts: data.alignment?.character_start_times_seconds ?? [],
+      chars: clip.alignment?.characters ?? [],
+      starts: clip.alignment?.characterStartTimesSeconds ?? [],
     },
     { headers: { "Cache-Control": "no-store" } },
   )
