@@ -83,8 +83,12 @@ export class Dictation {
       const connection = this.deps.connect(token)
       this.connection = connection
       const current = () => this.connection === connection && !request.signal.aborted
-      // Observe the SDK's public audio-send boundary, never the audio payload.
-      // Session-start alone does not mean permission/worklet setup succeeded.
+      // Session-start means the server accepted the session, not that the
+      // browser is sending anything: permission, the AudioContext and the
+      // worklet resolve separately. The SDK has no event for the first audio
+      // frame, so this watches the send boundary — never the payload — and the
+      // same count decides when the capture buffer has drained past `mute()`.
+      // See "A gap in the realtime SDK" in the README.
       const send = connection.send.bind(connection)
       connection.send = (data) => {
         if (!current()) return
