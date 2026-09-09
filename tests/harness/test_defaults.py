@@ -83,3 +83,25 @@ def test_a_home_that_was_never_provisioned_is_not_this_function_s_problem(
     to correct, and inventing a config for a directory would be a surprise."""
     assert defaults.align(tmp_path) is None
     assert not (tmp_path / "config.yaml").exists()
+
+
+def test_the_model_and_voices_come_from_the_shared_file() -> None:
+    """`speech.json` is what the web app reads too. Re-exporting it here rather
+    than restating it is what stops the two from disagreeing about which model
+    is speaking."""
+    import json
+
+    from src import speech
+
+    shared = json.loads(speech.SPEECH_FILE.read_text(encoding="utf-8"))
+    assert defaults.TTS_MODEL == shared["model"]
+    assert speech.VOICES == [voice["id"] for voice in shared["voices"]]
+
+
+def test_a_group_gets_ten_distinct_voices() -> None:
+    """Ten personas, ten voices: a room can deal every one of them a different
+    person and still give each a voice of its own."""
+    from src import speech
+
+    assert len(speech.VOICES) == 10
+    assert len(set(speech.VOICES)) == 10
