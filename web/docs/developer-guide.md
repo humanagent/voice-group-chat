@@ -196,6 +196,42 @@ inside the touch gesture; later taps, selection, swipes and zoom stay native.
 The leaderboard uses the same locked shell with its own scroll area; it never
 unmounts the room or starts a microphone. Leaving the app restores document scrolling.
 
+### The 62px window (installed iOS app)
+
+The hardest layout bug this app has had, and it was one CSS rule. Symptom: in
+the installed app the composer was cut off above a strip of empty floor, or
+sat floating above it, and it seemed to come and go. It is documented at length
+in `globals.css` under "THE 62px WINDOW"; the short version:
+
+- In standalone mode WebKit's initial containing block is the screen minus the
+  status bar. `html, body { height: 100% }` therefore produced a document 62px
+  short (812 on an 874pt iPhone 17 Pro).
+- About a second after every launch, WebKit shrank the window itself to that
+  document. `innerHeight` dropped from 874 to 812, anchored at the top, and the
+  bottom 62px showed the body colour with none of the page in it.
+- Every scroll and viewport offset read zero. Nothing was panned. The keyboard
+  was innocent, and force-quitting did not help because it happens per launch.
+- The fix is `html, body { height: var(--room-rest-height) }`, which is 100vh
+  in standalone, so the document is as tall as the screen.
+
+Things that were tried and did nothing, so nobody repeats them: scroll resets
+on keyboard dismissal, sizing the page to the measured window (the composer
+then floated 62px too high), toggling a full-height element's `display` to
+force a viewport re-measure, and re-setting the viewport meta.
+
+How it was found, which is the method to reach for first next time:
+
+1. Paint html, body, `.room-page`, `.room-shell` and `.composer-wrap` in
+   distinct colours. The band was the body's colour outside every element.
+2. Add a fixed overlay that prints `innerHeight`, `screen.height`,
+   `visualViewport` height and offset, `scrollY`, document and body heights,
+   the `env(safe-area-inset-*)` values, and the rects of page, shell and
+   composer. POST each change to a temporary dev API route so it lands in the
+   dev-server log; the user's cropped screenshots hide the numbers.
+3. Take full screenshots yourself: `xcrun simctl io booted screenshot out.png`.
+   CSS hot-reloads into the installed app, so experiments need no user action.
+4. Check the parents before the element that looks broken.
+
 `browser/viewport.spec.ts` simulates a tall layout viewport with a smaller,
 offset visual viewport, plus scroll-only updates and stale dismissal geometry.
 Ordinary viewport resizing alone does not reproduce that iOS behavior. This

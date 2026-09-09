@@ -157,11 +157,36 @@ html { color-scheme: dark; background: #17181f; --room-rest-height: 100dvh; --ro
 body { margin: 0; background: #17181f; }
 /* Lock only chat routes: the transcript scrolls, never the document behind it.
    Absolute placement inside the fixed body follows iOS's visual viewport pan. */
-/* The root and body take the rest height, never 100%. In the installed app
+/* THE 62px WINDOW. Read this before touching the height of html or body.
+
+   The root and body take the rest height, never 100%. In the installed app
    WebKit's initial containing block is the screen minus the status bar, so a
-   100% document came out 62px short; WebKit then shrank the window itself to
-   that document, clipping the composer above a strip of the web view's floor.
-   A document as tall as the screen keeps the window as tall as the screen. */
+   100% document came out 62px short on an iPhone 17 Pro (874 - 812), and
+   about a second after every launch WebKit shrank the window itself to match
+   that document: innerHeight 874 -> 812, anchored to the top of the screen,
+   with the bottom 62px painted in the body colour and nothing of ours in it.
+   The composer, sitting at the foot of a 100vh page, was cut off above it.
+
+   This was far harder to find than it should have been, and it cost an
+   afternoon and four wrong fixes. Every scroll and viewport offset read zero,
+   because nothing was panned; the keyboard was blamed because the strip was
+   first noticed after typing, but the log showed it appearing with no input
+   focused. Scroll resets, sizing the page to the measured window (which put
+   the composer 62px too high instead), the documented "heal" of toggling a
+   full-height element's display, and re-setting the viewport meta all did
+   nothing, since none of them changed the document's height. Force-quitting
+   did not help either: the shrink is per launch, not per keyboard.
+
+   What found it: colouring html, body, page, shell and footer differently,
+   a fixed overlay printing innerHeight, screen, visualViewport, safe-area env
+   values and element rects, POSTed to the dev log, and full simulator
+   screenshots. The band was the body's colour outside every element, the
+   document was 812 tall while the screen was 874, and setting html and body
+   to 100vh restored the window in one hot reload. Check the parents first.
+
+   A document as tall as the screen keeps the window as tall as the screen.
+   The keyboard hook still switches this to the visual viewport height while
+   a keyboard is up; that path was never the problem. */
 html[data-room-viewport="true"], html[data-room-viewport="true"] body { height: var(--room-rest-height, 100%); overflow: hidden; overscroll-behavior: none; }
 html[data-room-viewport="true"] body { position: fixed; inset: 0; background: #17181f; }
 html[data-room-viewport="true"] .room-page { position: absolute; top: var(--room-viewport-top, 0px); left: 0; right: 0; }

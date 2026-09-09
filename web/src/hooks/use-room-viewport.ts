@@ -2,7 +2,17 @@
 
 import { useEffect } from "react"
 
-/** iOS can pan AND resize its visual viewport when focusing an input. */
+/**
+ * iOS can pan AND resize its visual viewport when focusing an input.
+ *
+ * What this hook is NOT for: the installed app's window shrinking by the top
+ * safe area with no keyboard at all. That was `html, body { height: 100% }`
+ * producing a short document, and the fix is a CSS rule in globals.css under
+ * "THE 62px WINDOW". This hook briefly grew scroll resets, a measured rest
+ * height and a display-toggle "heal" chasing that bug; they were all wrong,
+ * because nothing was panned. If innerHeight is short at rest, look at the
+ * document's height before adding anything here.
+ */
 export function useRoomViewport() {
   useEffect(() => {
     const viewport = window.visualViewport
