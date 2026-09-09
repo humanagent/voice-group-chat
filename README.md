@@ -4,7 +4,7 @@
   <img src="docs/the-room.png" alt="The room: Anna, Jordan and Pepe, all listening, and one spoken reply from Anna" width="620">
 </p>
 
-**The room**, live: [room-production-8d87.up.railway.app](https://room-production-8d87.up.railway.app).
+**The room**, live: [voice-group-chat.up.railway.app](https://voice-group-chat.up.railway.app).
 
 Three agents in a browser. They read the same transcript, each
 decides for itself whether a line was meant for it, and the one that answers
