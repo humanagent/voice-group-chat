@@ -22,13 +22,17 @@ export function useRoomViewport() {
     const syncMode = () => {
       const installed = standalone.matches || !!(navigator as Navigator & { standalone?: boolean }).standalone
       root.dataset.roomStandalone = String(installed)
-      // Only the installed app is a fixed surface with no pinch or double-tap
-      // zoom. The browser keeps zoom, and its meta must not disable it.
-      const meta = document.querySelector<HTMLMetaElement>("meta[name=viewport]")
-      if (installed && meta && !meta.content.includes("maximum-scale")) meta.content = `${meta.content}, maximum-scale=1, user-scalable=no`
     }
     syncMode()
     standalone.addEventListener("change", syncMode)
+    // The viewport meta already forbids zoom. iOS still fires its proprietary
+    // gesture events for a pinch, and cancelling them is what keeps the
+    // installed app from scaling if a WebKit version ignores the meta.
+    const blockPinch = (event: Event) => {
+      if (root.dataset.roomStandalone === "true") event.preventDefault()
+    }
+    document.addEventListener("gesturestart", blockPinch, { passive: false })
+    document.addEventListener("gesturechange", blockPinch, { passive: false })
     let frame = 0
     let trackingKeyboard = false
     let sawKeyboard = false
@@ -157,6 +161,8 @@ export function useRoomViewport() {
       window.removeEventListener("orientationchange", settle)
       window.removeEventListener("pageshow", settle)
       standalone.removeEventListener("change", syncMode)
+      document.removeEventListener("gesturestart", blockPinch)
+      document.removeEventListener("gesturechange", blockPinch)
       document.removeEventListener("focusin", focusChanged)
       document.removeEventListener("focusout", focusChanged)
       document.removeEventListener("visibilitychange", settle)

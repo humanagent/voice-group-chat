@@ -196,7 +196,7 @@ html[data-room-viewport="true"] .room-page { position: absolute; top: var(--room
 /* Both selectors, because the media query is true from the first paint while
    the attribute arrives with hydration: the app must fit before any script. */
 @media (display-mode: standalone) {
-  html { --room-rest-height: 100vh; touch-action: pan-x pan-y; }
+  html { --room-rest-height: 100vh; }
   .room-page { padding: 0; }
   .room-shell { width: 100%; border: 0; border-radius: 0; box-shadow: none; padding: var(--room-safe-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   .composer-wrap { padding-bottom: max(8px, calc(var(--room-safe-bottom) - var(--room-keyboard-inset, 0px))); }
@@ -205,7 +205,13 @@ html[data-room-standalone="true"] { --room-rest-height: 100vh; }
 html[data-room-standalone="true"] .room-page { padding: 0; }
 html[data-room-standalone="true"] .room-shell { width: 100%; border: 0; border-radius: 0; box-shadow: none; padding: var(--room-safe-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
 button, a, textarea { -webkit-tap-highlight-color: transparent; }
-button { touch-action: manipulation; }
+/* Every element carries its own touch-action. WebKit resets the effective
+   value at each scroll container (the transcript, notices, the textarea), so a
+   rule on html never reaches a tap inside them and double-tap still zoomed.
+   The browser keeps pinch for accessibility; the installed app allows panning only. */
+* { touch-action: manipulation; }
+@media (display-mode: standalone) { * { touch-action: pan-x pan-y; } }
+html[data-room-standalone="true"] * { touch-action: pan-x pan-y; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 button { transition: color 180ms, background-color 180ms, opacity 180ms, transform 180ms; }
 button:active:not(:disabled) { transform: scale(.96); }

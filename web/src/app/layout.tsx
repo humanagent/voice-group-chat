@@ -13,9 +13,12 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   width: "device-width", initialScale: 1, viewportFit: "cover",
-  // Zoom stays enabled here: disabling it in the meta is an accessibility
-  // violation for the browser. The installed app locks it at runtime instead,
-  // in use-room-viewport.ts, where it is a fixed surface by design.
+  // The room is a fixed surface: no pinch or double-tap zoom. This has to be
+  // in the served HTML; iOS does not reliably honour a meta patched after
+  // hydration. Safari's browser tab ignores it and keeps pinch zoom for
+  // accessibility, while the installed app respects it. The touch-action rules
+  // in globals.css and the gesture guard in use-room-viewport.ts back it up.
+  maximumScale: 1, userScalable: false,
   themeColor: "#17181f", colorScheme: "dark", interactiveWidget: "resizes-content",
 }
 
