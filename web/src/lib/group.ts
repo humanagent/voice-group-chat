@@ -3,11 +3,9 @@ import type { Agent } from "./agents"
 /**
  * The room. There is one, and this is its name.
  *
- * It used to be `room-<now>`, minted per visit, so "which one was I in" was a
- * question anybody could ask and nobody could answer from the screen. A fixed
- * id is what makes the room a place rather than a thing you open: the browser,
- * the terminal client and the log all mean the same conversation without being
- * told which.
+ * A fixed id is what makes the room a place rather than a thing you open: the
+ * browser, the terminal client and the log all mean the same conversation
+ * without being told which.
  */
 export const ROOM = "room"
 
@@ -18,12 +16,10 @@ const AUDIO = [".mp3", ".ogg", ".wav", ".m4a"]
 /**
  * A line somebody said, as it is stored: `Name: what they said`.
  *
- * The name has to look like a name. This was `[^\n:]{1,24}` — anything at all,
- * as long as a colon came after it — and a tool result beginning
- * `{"success": true, …` therefore parsed as a member called `{"success"` saying
- * `true, "done": true, …`, which is exactly how a memory write ended up in the
- * transcript wearing a speaker's name. Letters first, then only what a name is
- * made of.
+ * The name has to look like a name — letters first, then only what a name is
+ * made of. Anything ending in a colon would also match a tool result opening
+ * `{"success": true, …`, and a memory write would appear in the transcript
+ * wearing a speaker's name.
  */
 const SPOKE = /^\s*([\p{L}][\p{L}\p{M}\d .'’-]{0,23}):\s([\s\S]*)$/u
 
@@ -87,10 +83,9 @@ export async function openChat(agent: Agent, chat: string, signal?: AbortSignal)
 /** Hand one line to one agent. The line arrives attributed, exactly as a
  *  person's would: an agent has no way to tell whether the speaker was human.
  *
- *  A turn gets the same 240s whether or not a caller can cancel it. This once
- *  read `signal ? 30_000 : 240_000`, and since every caller passes a signal,
- *  every ordinary reply and every introduction was quietly capped at 30s: an
- *  agent that used a tool for 40s was reported as unavailable while its answer
+ *  A turn gets the same 240s whether or not a caller can cancel it. Deriving
+ *  the budget from whether a signal was passed capped every reply at 30s, so an
+ *  agent that used a tool for 40s was reported unavailable while its answer
  *  landed in its history unseen. Cancellation and budget are separate things;
  *  whoever needs a shorter budget puts it in the signal it passes. */
 export async function deliver(agent: Agent, chat: string, speaker: string, text: string, signal?: AbortSignal): Promise<Reply> {
@@ -131,10 +126,10 @@ export function roster(agents: Agent[], people: string[], you: string): string {
  * came from makes, where addressing decides whether an agent SPEAKS and never
  * whether it hears.
  *
- * It was briefly narrower — a reply went only to the agents it named, which is
- * faster and cheaper and quietly wrong. Asked to pass a standup on, Pepe handed
- * it back to somebody who had already gone: he had never been given her turn.
- * Not a lapse in judgement, a hole in what he was told.
+ * Delivering only to the agents a reply names is faster, cheaper and quietly
+ * wrong: an agent asked to pass a standup on handed it back to somebody who had
+ * already gone, because it was never given her turn. Not a lapse in judgement,
+ * a hole in what it was told.
  */
 export function audienceFor(agents: Agent[], speaker: string): Agent[] {
   return agents.filter((a) => a.name !== speaker)

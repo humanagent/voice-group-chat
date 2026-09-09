@@ -1,14 +1,13 @@
 /**
  * One voice at a time, and the orb moves with it.
  *
- * Two things the room needs from a spoken reply: that clips do not overlap, and
- * that the orb pulses with the actual voice rather than with an animation
- * pretending to. Both come from the same place — a queue of one, and an
- * analyser on what is playing.
+ * Two things the room needs from a spoken reply: that clips never overlap, and
+ * that the orb pulses with the actual voice rather than an animation pretending
+ * to. Both come from the same place — a queue of one, and an analyser on what
+ * is playing.
  *
- * Overlapping was never an option: in a group, who spoke after whom is most of
- * the meaning. The harness guarantees one speaker per turn, so this only has to
- * hold that line across turns.
+ * In a group, who spoke after whom is most of the meaning. The harness gives
+ * one speaker per turn; this holds that line across turns.
  */
 export type Speaking = { agent: string; level: () => number }
 
@@ -106,17 +105,15 @@ export class Voice {
   /**
    * The whole clip, decoded, before a sound comes out.
    *
-   * This used to be `new Audio(url)` played immediately, and the first second
-   * of every reply stuttered. A media element pulls its data on the main
-   * thread, and the main thread at that exact moment is the busiest it ever
-   * gets: the line lands in the transcript, the speaking orb springs from 96
-   * to 228 pixels, its canvas re-renders at the new size and the other two
-   * bubbles move out of the way. The audio was competing with the animation
-   * that announces it.
+   * A media element pulls its data on the main thread, and the main thread at
+   * the moment a reply lands is the busiest it ever gets — the line enters the
+   * transcript, the orb grows and re-renders, the other bubbles move aside.
+   * Audio played that way competes with the animation announcing it, and the
+   * first second stutters.
    *
-   * A decoded buffer does not compete. Once it is scheduled it belongs to the
-   * audio thread, and nothing React does can starve it. Nothing is lost by
-   * holding it whole: the route already buffers the entire clip server-side.
+   * A decoded buffer does not compete: once scheduled it belongs to the audio
+   * thread, and nothing React does can starve it. Nothing is lost by holding it
+   * whole, since the route buffers the entire clip server-side anyway.
    */
   private async load(url: string): Promise<Sound | null> {
     try {

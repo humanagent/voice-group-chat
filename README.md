@@ -101,6 +101,39 @@ broken. `elevenlabs/examples` already has it right. Filed with a standalone
 repro, 2026-08-29, and fixed in
 [elevenlabs/ui#83](https://github.com/elevenlabs/ui/pull/83).
 
+## A gap in the realtime SDK: knowing the microphone is live
+
+`session_started` says the server accepted the session. It does not say the
+browser is sending anything — permission, the `AudioContext` and the worklet all
+resolve separately, and a session can be open while nothing is being captured.
+Telling somebody "listening" at that point is a promise the page cannot keep.
+
+`@elevenlabs/client@1.23.0` defines 23 realtime events. Every one is about the
+session, a transcript, or an error; none of them fires when audio starts
+flowing. So this room wraps the connection's own `send` to notice the first
+chunk, and only then calls itself listening:
+
+```ts
+const send = connection.send.bind(connection)
+connection.send = (data) => { send(data); if (!audioStarted) { audioStarted = true; activate() } }
+```
+
+Patching a method the SDK owns is the wrong shape for a supported integration,
+and it breaks silently whenever the internals move.
+
+There is a public extension point, `setScribeMicrophoneSetup`, paired with
+`getScribeMicrophoneSetup` so the web implementation can be wrapped rather than
+replaced. It is documented for supplying a microphone on a non-web platform,
+and it is a process-wide singleton: one setup for every connection in the tab,
+installed once, with no connection to attribute a chunk to.
+
+What would remove the patch is either a `RealtimeEvents` member for the first
+audio frame, or an `onAudioData` callback on `Scribe.connect` alongside the
+existing `microphone` options — per connection, where the consumer already is.
+The commit flow needs the same signal for a second reason: with
+`CommitStrategy.MANUAL`, committing has to wait for the capture buffer to drain
+past `mute()`, and counting chunks is the only way to know it has.
+
 ## Text to speech
 
 Same voice, same sentence:
