@@ -110,6 +110,19 @@ def test_a_provider_that_fails_costs_the_audio_not_the_answer(monkeypatch, tmp_p
     assert voice.speak("hey", voice_id="v") is None
 
 
+def test_a_stream_that_stops_halfway_leaves_no_unplayable_clip(monkeypatch, tmp_path) -> None:
+    """The file is already open by the time a chunk fails. Nothing points at it,
+    but one per provider blip is litter with a cause."""
+    def _breaks():
+        yield b"ID3"
+        raise RuntimeError("stream died")
+
+    fake = _synthesiser(monkeypatch, tmp_path)
+    fake._chunks = _breaks()
+    assert voice.speak("hey", voice_id="v") is None
+    assert list((tmp_path / "cache" / "audio").iterdir()) == []
+
+
 def test_an_empty_clip_is_reported_as_no_audio_and_left_nowhere(monkeypatch, tmp_path) -> None:
     """A refused request can still produce a file. Handing that back is a
     client trying to play silence rather than saying nothing."""

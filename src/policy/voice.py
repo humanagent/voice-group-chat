@@ -226,6 +226,7 @@ def speak(text: str, *, voice_id: str | None = None) -> str | None:
     # synthesising an empty string bills for silence.
     if not line or not enabled():
         return None
+    path: Path | None = None
     try:
         audio = _client().text_to_speech.convert(
             voice_id=voice_id or VOICES[0],
@@ -240,6 +241,12 @@ def speak(text: str, *, voice_id: str | None = None) -> str | None:
             for chunk in audio:
                 clip.write(chunk)
     except Exception:  # noqa: BLE001
+        # A stream that stopped halfway still wrote a file. Nothing points at
+        # it — this returns None, so no reply names it — but an unplayable clip
+        # accumulating in the cache on every provider blip is litter with a
+        # cause, and the cause is here.
+        if path is not None:
+            path.unlink(missing_ok=True)
         return None
 
     # A zero-byte file is what a refused request leaves behind, and handing that
