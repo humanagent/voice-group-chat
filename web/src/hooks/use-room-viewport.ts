@@ -2,14 +2,31 @@
 
 import { useEffect } from "react"
 
-/** iOS can pan AND resize its visual viewport when focusing an input. */
+/**
+ * iOS can pan AND resize its visual viewport when focusing an input.
+ *
+ * What this hook is NOT for: the installed app's window shrinking by the top
+ * safe area with no keyboard at all. That was `html, body { height: 100% }`
+ * producing a short document, and the fix is a CSS rule in globals.css under
+ * "THE 62px WINDOW". This hook briefly grew scroll resets, a measured rest
+ * height and a display-toggle "heal" chasing that bug; they were all wrong,
+ * because nothing was panned. If innerHeight is short at rest, look at the
+ * document's height before adding anything here.
+ */
 export function useRoomViewport() {
   useEffect(() => {
     const viewport = window.visualViewport
     const root = document.documentElement
     root.dataset.roomViewport = "true"
     const standalone = matchMedia("(display-mode: standalone)")
-    const syncMode = () => { root.dataset.roomStandalone = String(standalone.matches || !!(navigator as Navigator & { standalone?: boolean }).standalone) }
+    const syncMode = () => {
+      const installed = standalone.matches || !!(navigator as Navigator & { standalone?: boolean }).standalone
+      root.dataset.roomStandalone = String(installed)
+      // Only the installed app is a fixed surface with no pinch or double-tap
+      // zoom. The browser keeps zoom, and its meta must not disable it.
+      const meta = document.querySelector<HTMLMetaElement>("meta[name=viewport]")
+      if (installed && meta && !meta.content.includes("maximum-scale")) meta.content = `${meta.content}, maximum-scale=1, user-scalable=no`
+    }
     syncMode()
     standalone.addEventListener("change", syncMode)
     let frame = 0
@@ -35,6 +52,7 @@ export function useRoomViewport() {
       if (trackingKeyboard && height < restingVisualHeight - 1) keyboardResized = true
       if (trackingKeyboard && inset > 120) sawKeyboard = true
       if (!editing && inset < 1 && (viewport?.offsetTop ?? 0) < 1) trackingKeyboard = false
+      if (!editing && inset < 1) unpan()
       // Follow EVERY keyboard frame, including the first few pixels and the
       // closing animation after blur. A threshold or CSS height transition here
       // makes the composer jump or trail the OS keyboard.
@@ -56,6 +74,7 @@ export function useRoomViewport() {
         // this small-inset heuristic AFTER a real keyboard has been observed
         // and resize events stop, never to gate its opening/closing frames.
         const inset = window.innerHeight - (viewport?.height ?? window.innerHeight)
+        if (inset < 120) unpan()
         const panned = (viewport?.offsetTop ?? 0) >= 1
         const nearlyClosed = sawKeyboard && inset < 120 && !panned
         // Blur can arrive well before the final resize, especially on a busy
@@ -66,8 +85,20 @@ export function useRoomViewport() {
         trackingKeyboard = false
         sawKeyboard = false
         keyboardResized = false
+        unpan()
         schedule()
       }, delay)
+    }
+    // Installed Safari pans the layout viewport up to reveal a focused input
+    // and does not always pan it back when the keyboard closes. Only once the
+    // keyboard is fully gone: never fight the pan while it is opening.
+    const unpan = () => {
+      if (viewport && viewport.scale !== 1) return
+      if ((viewport?.offsetTop ?? 0) >= 1 || window.scrollY >= 1) {
+        window.scrollTo(0, 0)
+        const scroller = document.scrollingElement
+        if (scroller && scroller.scrollTop) scroller.scrollTop = 0
+      }
     }
     const geometryChanged = () => {
       if (isEditing()) trackingKeyboard = true
