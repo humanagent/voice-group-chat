@@ -74,7 +74,7 @@ test("queued messages serialize and an interrupted stream is recoverable", async
   await expect(page.getByRole("button", { name: "Stop the room" })).toHaveCount(0)
 })
 
-test("incoming replies respect scroll position and clear requires confirmation", async ({ page }) => {
+test("incoming replies respect scroll position and clear requires confirmation", async ({ page, browserName }) => {
   await mockRoom(page, Array.from({ length: 45 }, (_, i) => ({ speaker: i % 2 ? "Anna" : "you", text: `Earlier message ${i}. A thought worth keeping in view.`, spoken: false })))
   let release: () => void = () => {}
   const held = new Promise<void>((resolve) => { release = resolve })
@@ -86,8 +86,14 @@ test("incoming replies respect scroll position and clear requires confirmation",
   await box.press("Enter")
   const scroller = page.locator(".room-conversation > div").first()
   await expect(page.getByText("Anna, one more thought.", { exact: true })).toBeVisible()
-  await scroller.hover()
-  await page.mouse.wheel(0, -10000)
+  if (browserName === "chromium") {
+    await scroller.hover()
+    await page.mouse.wheel(0, -10000)
+  } else {
+    // Touch WebKit has no wheel support; Firefox bounds each wheel gesture.
+    await scroller.evaluate((node) => { node.scrollTop = 0 })
+  }
+  await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBeLessThan(100)
   await expect(page.getByRole("button", { name: "Jump to latest messages" })).toBeVisible()
   release()
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeAttached()
@@ -100,7 +106,10 @@ test("incoming replies respect scroll position and clear requires confirmation",
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
 })
 
-test("PWA offline navigation preserves drafts and never caches conversation APIs", async ({ page, context }) => {
+test.describe("Service worker integration", () => {
+test.use({ serviceWorkers: "allow" })
+test("PWA offline navigation preserves drafts and never caches conversation APIs", async ({ page, context, browserName }) => {
+  test.skip(browserName !== "chromium", "Playwright service-worker network/offline instrumentation is Chromium-only")
   await mockRoom(page)
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
@@ -109,6 +118,10 @@ test("PWA offline navigation preserves drafts and never caches conversation APIs
   const manifest = await (await page.request.get("/manifest.webmanifest")).json()
   expect(manifest.display).toBe("standalone")
   expect(manifest.icons.some((icon: { purpose: string }) => icon.purpose === "maskable")).toBe(true)
+  const protocol = await context.newCDPSession(page)
+  expect((await protocol.send("Page.getAppManifest")).errors).toEqual([])
+  expect((await protocol.send("Page.getInstallabilityErrors")).installabilityErrors).toEqual([])
+  await protocol.detach()
   const cached = await page.evaluate(async () => {
     const keys = await caches.keys()
     return (await Promise.all(keys.map(async (key) => (await (await caches.open(key)).keys()).map((request) => request.url)))).flat()
@@ -124,6 +137,7 @@ test("PWA offline navigation preserves drafts and never caches conversation APIs
   await context.setOffline(false)
   await page.getByRole("link", { name: "Back to the room" }).click()
   await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveValue("Edited while offline")
+})
 })
 
 test("reduced motion and a compact viewport keep the composer accessible", async ({ page }) => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { record } from "@/lib/telemetry"
 
 type InstallPrompt = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> }
@@ -13,14 +13,21 @@ function subscribeOnline(listener: () => void) {
 const noSubscription = () => () => {}
 const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || !!(navigator as Navigator & { standalone?: boolean }).standalone
+function subscribeStandalone(listener: () => void) {
+  const media = matchMedia("(display-mode: standalone)")
+  media.addEventListener("change", listener)
+  return () => media.removeEventListener("change", listener)
+}
 
 export function usePwa() {
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true)
   const [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null)
   const ios = useSyncExternalStore(noSubscription, isIos, () => false)
-  const standalone = useSyncExternalStore(noSubscription, isStandalone, () => false)
+  const standalone = useSyncExternalStore(subscribeStandalone, isStandalone, () => false)
   const [installed, setInstalled] = useState(false)
   const [update, setUpdate] = useState<ServiceWorker | null>(null)
+  const [updating, setUpdating] = useState(false)
+  const updateCleanup = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const installation = () => { setInstalled(true); setInstallPrompt(null) }
@@ -55,6 +62,7 @@ export function usePwa() {
       window.removeEventListener("appinstalled", installation)
       registration?.removeEventListener("updatefound", updateFound)
       installing?.removeEventListener("statechange", stateChange)
+      updateCleanup.current?.()
     }
   }, [])
 
@@ -68,10 +76,20 @@ export function usePwa() {
   }
 
   function applyUpdate() {
-    if (!update) return
-    navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true })
-    update.postMessage({ type: "SKIP_WAITING" })
+    if (!update || updateCleanup.current) return
+    setUpdating(true)
+    const reload = () => { cleanup(); location.reload() }
+    const failed = () => { cleanup(); setUpdating(false); record("pwa_error", 1) }
+    const timer = setTimeout(failed, 10_000)
+    const cleanup = () => {
+      clearTimeout(timer)
+      navigator.serviceWorker.removeEventListener("controllerchange", reload)
+      updateCleanup.current = null
+    }
+    updateCleanup.current = cleanup
+    navigator.serviceWorker.addEventListener("controllerchange", reload, { once: true })
+    try { update.postMessage({ type: "SKIP_WAITING" }) } catch { failed() }
   }
 
-  return { online, installed: installed || standalone, canInstall: !!installPrompt, ios, install, update: !!update, applyUpdate }
+  return { online, installed: installed || standalone, canInstall: !!installPrompt, ios, install, update: !!update, updating, applyUpdate }
 }

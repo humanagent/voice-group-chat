@@ -6,6 +6,13 @@ let started = false
 let frame = 0
 let lastSample = -Infinity
 const listeners = new Set<() => void>()
+const batchListeners = new Set<(samples: Sample[]) => void>()
+
+/** Optional exporters run only at flush time, never in the transcription render path. */
+export function subscribeBatches(listener: (samples: Sample[]) => void) {
+  batchListeners.add(listener)
+  return () => { batchListeners.delete(listener) }
+}
 
 export function record(name: MetricName, value: number, id?: string) {
   if (typeof window === "undefined" || !Number.isFinite(value) || value < 0) return
@@ -25,6 +32,9 @@ function flush() {
   if (!pending.length || !navigator.onLine) return
   const batch = pending
   pending = []
+  for (const listener of batchListeners) {
+    try { listener(batch) } catch { /* An unavailable exporter must not interrupt chat or local logging. */ }
+  }
   const body = JSON.stringify(batch)
   try {
     if (navigator.sendBeacon?.("/api/telemetry", new Blob([body], { type: "application/json" }))) return

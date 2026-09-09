@@ -212,10 +212,12 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
+        <div className="room-notices">
         {error && <div className="room-notice" role="alert"><span>{error}</span>{!chat && <button onClick={() => { setOpening(true); setError(null); void open() }} disabled={opening || !pwa.online}><RefreshCwIcon size={14} /> Reconnect</button>}<button className="notice-dismiss" onClick={() => setError(null)} aria-label="Dismiss notification"><XIcon size={14} /></button></div>}
         {!pwa.online && <div className="room-notice"><WifiOffIcon size={14} /><span>You’re offline. You can keep writing; send when you’re back.</span></div>}
-        {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || opening || clearing} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} /> Update</button></div>}
+        {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || opening || clearing || !!talking || pwa.updating} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} />{pwa.updating ? "Updating…" : "Update"}</button></div>}
         {installHelp && <div className="room-notice" role="status"><span>In Safari, tap Share, then “Add to Home Screen”.</span><button onClick={() => setInstallHelp(false)} aria-label="Dismiss install instructions"><XIcon size={14} /></button></div>}
+        </div>
         <Composer ready={!!chat && !opening && !clearing} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} />
         {clearing && <div className="clearing-overlay" role="status"><LoaderCircleIcon className="animate-spin" size={24} />Clearing…</div>}
       </section>
