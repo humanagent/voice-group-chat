@@ -20,6 +20,8 @@ group.json
 
 # the web app
 web/.next/
+web/test-results/
+web/playwright-report/
 web/next-env.d.ts
 .claude/worktrees/
 prep/
