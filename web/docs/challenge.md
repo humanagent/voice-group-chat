@@ -1,6 +1,7 @@
 # Conversation challenge: one prompt, 20 replies
 
-Open `/challenge`, or the trophy in the room header. One prompt starts a fresh
+Open `/challenge`, or the trophy in the room header, to see the global scoreboard.
+Choose **Play** to open the prompt on that same page. One prompt starts a fresh
 attempt. Each nonempty agent reply adds one point, including replies to the
 original prompt and subsequent agent-to-agent replies. Introductions, silence,
 errors and the user's prompt never count. Three replies mean three points.
@@ -13,10 +14,21 @@ sessions; it does not clear or reuse the shared room.
 
 At the end, the player can enter a public nickname and choose **Publish score**,
 or skip publication and play again. Scores below 20 can also be published.
-`/challenge/scoreboard` shows the top 50 attempts, score descending; ties go to
+The scoreboard on `/challenge` shows the top 50 attempts, score descending; ties go to
 the first publication. Each attempt appears at most once. Names may repeat:
 they are nicknames, not accounts or verified identities. Winning is a game
 state, not a monetary payout or prize-redemption integration.
+
+Ranking, play and results share `/challenge`; the old `/challenge/scoreboard`
+URL redirects there. Returning to the scoreboard preserves an unfinished draft
+or saved result. After a reload, **View result** recovers an unpublished score
+without sending a prompt. **Back to the room** is always in the header; leaving
+an active attempt cancels it rather than silently continuing model calls. The
+header contains Room, Challenge and (when available) Install actions. Room
+navigation never clears shared history. The former clear-context and volume
+actions and duplicate scoreboard links are no longer in the header/content.
+The scoreboard is the challenge landing screen, without the agent stage above
+it; the stage returns when Play opens the room in challenge mode.
 
 ## Trust boundary
 

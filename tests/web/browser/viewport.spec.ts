@@ -61,12 +61,84 @@ test("iOS keyboard pan keeps the room above the keyboard and restores full heigh
   await expect.poll(() => page.locator(".room-page").evaluate((node) => Math.round(node.getBoundingClientRect().bottom))).toBe(844)
   await expect(page.locator(".stage-wrap")).toBeVisible()
   expect(await page.evaluate(() => scrollY)).toBe(0)
-  // Leaving the room restores normal document scrolling for the ranking page.
+  // The scoreboard stays inside the same room shell; it no longer navigates
+  // to a document-scrolling page or leaves the keyboard viewport lock behind.
   await page.route("**/api/challenge", (route) => route.fulfill({ json: { run: null } }))
   await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))
   await page.getByRole("link", { name: "Play challenge" }).click()
-  await page.getByRole("link", { name: "Global scoreboard", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
-  await expect(page.locator("html")).not.toHaveAttribute("data-room-viewport", "true")
-  expect(await page.locator("body").evaluate((node) => getComputedStyle(node).position)).not.toBe("fixed")
+  await expect(page.locator("html")).toHaveAttribute("data-room-viewport", "true")
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeInViewport({ ratio: 1 })
+})
+
+test("tap focus survives keyboard frames and multiline sizing has no breakpoint jump", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
+  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
+  await page.goto("/")
+  await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
+  const input = page.getByRole("textbox", { name: "Message the room" })
+  await input.fill("A multiline draft\n".repeat(20))
+  await input.evaluate((node) => {
+    node.dataset.blurCount = "0"
+    node.addEventListener("blur", () => { node.dataset.blurCount = String(Number(node.dataset.blurCount) + 1) })
+  })
+  // Padding is part of the visible text field, not a keyboard-dismiss target.
+  await page.locator("form.composer").click({ position: { x: 6, y: 6 } })
+  await expect(input).toBeFocused()
+  const frames = await page.evaluate(async () => {
+    const input = document.querySelector("textarea")!
+    const samples: { height: number; room: number; input: number; focused: boolean; stage: number }[] = []
+    for (const height of [844, 820, 780, 724, 680, 621, 619, 574, 540, 500, 460, 400, 360]) {
+      Object.defineProperties(visualViewport!, {
+        height: { configurable: true, value: height },
+        offsetTop: { configurable: true, value: (844 - height) / 3 },
+      })
+      visualViewport!.dispatchEvent(new Event("resize"))
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      samples.push({ height, room: document.querySelector(".room-page")!.getBoundingClientRect().height,
+        input: input.getBoundingClientRect().height, focused: document.activeElement === input,
+        stage: document.querySelector(".stage-wrap")!.getBoundingClientRect().top - visualViewport!.offsetTop })
+    }
+    return samples
+  })
+  for (const sample of frames) {
+    expect(sample.room).toBeCloseTo(sample.height, 0)
+    expect(sample.focused).toBe(true)
+    expect(sample.stage).toBeCloseTo(frames[0].stage, 0)
+  }
+  for (let i = 1; i < frames.length; i++) {
+    expect(frames[i - 1].input - frames[i].input).toBeLessThanOrEqual(frames[i - 1].height - frames[i].height + 1)
+  }
+  await expect(input).toHaveAttribute("data-blur-count", "0")
+  const closing = await page.evaluate(async () => {
+    document.querySelector("textarea")!.blur()
+    const samples: { height: number; room: number }[] = []
+    for (const height of [360, 400, 500, 620, 724, 790]) {
+      Object.defineProperties(visualViewport!, {
+        height: { configurable: true, value: height }, offsetTop: { configurable: true, value: 0 },
+      })
+      visualViewport!.dispatchEvent(new Event("resize"))
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      samples.push({ height, room: document.querySelector(".room-page")!.getBoundingClientRect().height })
+    }
+    return samples
+  })
+  for (const sample of closing) expect(sample.room).toBeCloseTo(sample.height, 0)
+  await expect.poll(() => page.locator(".room-page").evaluate((node) => node.getBoundingClientRect().bottom)).toBe(844)
+  const surfaces = await page.evaluate(() => [document.documentElement, document.body, document.querySelector(".room-shell")!, document.querySelector(".composer-wrap")!].map((node) => getComputedStyle(node).backgroundColor))
+  expect(new Set(surfaces).size).toBe(1)
+  const footer = await page.locator(".composer-wrap").boundingBox()
+  expect(footer!.y + footer!.height).toBe(844)
+  // The keyboard's dismissal control can leave the textarea focused on iOS.
+  await input.focus()
+  await page.evaluate(async () => {
+    Object.defineProperty(visualViewport!, "height", { configurable: true, value: 360 })
+    visualViewport!.dispatchEvent(new Event("resize"))
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    Object.defineProperty(visualViewport!, "height", { configurable: true, value: 790 })
+    visualViewport!.dispatchEvent(new Event("resize"))
+  })
+  await expect.poll(() => page.locator(".room-page").evaluate((node) => node.getBoundingClientRect().bottom)).toBe(844)
+  await expect(input).toBeFocused()
 })

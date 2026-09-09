@@ -18,6 +18,7 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   let published = false
   let starts = 0
   await page.emulateMedia({ reducedMotion: "reduce" })
+  await page.route("**/api/speak?*", (route) => route.fulfill({ status: 503, json: { error: "Speech mocked for browser tests" } }))
   await page.route("**/api/challenge", async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { run } })
     starts++
@@ -35,7 +36,9 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   })
   await page.goto("/challenge")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
-  await page.getByRole("button", { name: "Mute voice replies" }).click()
+  await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveCount(0)
+  await page.getByRole("button", { name: restored && !restored.submitted ? "View result" : "Play", exact: true }).click()
   return { starts: () => starts }
 }
 
@@ -50,9 +53,13 @@ test("20 wins the challenge, asks for a name, and publishes to the global scoreb
   await page.getByRole("button", { name: "Publish score" }).click()
   await expect(page.getByText("Result published.")).toBeVisible()
   expect(round.starts()).toBe(1)
-  await page.getByRole("link", { name: "View global scoreboard", exact: true }).click()
+  await page.getByRole("button", { name: "Global scoreboard", exact: true }).click()
   await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("Fabri")
   await expect(page.getByText("Winner", { exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/challenge$/)
+  await page.getByRole("button", { name: "Play", exact: true }).click()
+  await expect(page.getByLabel("Challenge score")).toHaveText("0 / 20")
+  expect(round.starts()).toBe(1)
 })
 
 test("three replies produce three points, not a win, and publication can be skipped", async ({ page }) => {
@@ -71,8 +78,57 @@ test("reload recovers an unpublished result without sending another prompt", asy
   const round = await setup(page, 20, completed(20))
   await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
   await page.reload()
+  await page.getByRole("button", { name: "View result", exact: true }).click()
   await expect(page.getByLabel("Your name")).toBeVisible()
   expect(round.starts()).toBe(0)
+})
+
+test("scoreboard and play share a URL, preserve drafts, and both can exit to the room", async ({ page }) => {
+  const round = await setup(page)
+  const input = page.getByRole("textbox", { name: "Message the room" })
+  await input.fill("Keep this draft")
+  await page.getByRole("button", { name: "Global scoreboard", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
+  await expect(page.locator(".stage-wrap")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(page).toHaveURL(/\/challenge$/)
+  expect(round.starts()).toBe(0)
+  await page.getByRole("button", { name: "Play", exact: true }).click()
+  await expect(input).toHaveValue("Keep this draft")
+  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
+  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
+  await page.getByRole("link", { name: "Back to the room", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "The room", exact: true })).toBeVisible()
+  await page.getByRole("link", { name: "Play challenge" }).click()
+  await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
+  await page.getByRole("link", { name: "Back to the room", exact: true }).click()
+  await expect(page).toHaveURL(/\/$/)
+})
+
+test("old scoreboard links land on the single challenge page", async ({ page }) => {
+  await setup(page)
+  await page.goto("/challenge/scoreboard")
+  await expect(page).toHaveURL(/\/challenge$/)
+  await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible()
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+})
+
+test("a late saved-result response cannot replace an input the player has tapped", async ({ page }) => {
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => { release = resolve })
+  await page.route("**/api/challenge", async (route) => {
+    await pending
+    await route.fulfill({ json: { run: completed(3) } })
+  })
+  await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))
+  await page.goto("/challenge")
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeDisabled()
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveCount(0)
+  release()
+  await page.getByRole("button", { name: "View result", exact: true }).click()
+  await page.getByLabel("Your name").click()
+  await expect(page.getByLabel("Your name")).toBeFocused()
 })
 
 test("result form fits a narrow keyboard-height viewport and is accessible", async ({ page }, info) => {

@@ -1,5 +1,4 @@
-import { Scoreboard } from "@/components/challenge-score"
+import { redirect } from "next/navigation"
 
-export const metadata = { title: "Global scoreboard · The room" }
-
-export default function Page() { return <Scoreboard /> }
+// Keep existing shared links working; ranking and play now share one screen.
+export default function Page() { redirect("/challenge") }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useSyncExternalStore } from "react"
+import { useImperativeHandle, useLayoutEffect, useRef, useSyncExternalStore } from "react"
 import { ArrowUpIcon, LoaderCircleIcon, MicIcon, SquareIcon, XIcon } from "lucide-react"
 import { useDictation } from "@/hooks/use-dictation"
 import { getDraft, saveDraft, serverDraft, subscribeDraft } from "@/lib/draft"
@@ -46,7 +46,7 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
       lastRenderMetric.current = now
     }
   }, [dictation.text, dictation.receivedAt, dictation.id])
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = box.current
     if (!node) return
     node.style.height = "auto"
@@ -60,7 +60,14 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
   }
   return (
     <footer className="composer-wrap">
-      <form className={`composer ${listening ? "is-recording" : ""}`} onSubmit={(event) => { event.preventDefault(); if (!listening) send() }}>
+      <form className={`composer ${listening ? "is-recording" : ""}`} onPointerDown={(event) => {
+        // The visible input includes its padded surface. Tapping that surface
+        // must not blur the textarea; buttons keep their own focus behavior.
+        if (event.target === event.currentTarget && box.current) {
+          event.preventDefault()
+          box.current.focus({ preventScroll: true })
+        }
+      }} onSubmit={(event) => { event.preventDefault(); if (!listening) send() }}>
         {listening ? (
           <>
             <div className="recording-content">

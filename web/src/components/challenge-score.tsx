@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { TrophyIcon } from "lucide-react"
 import { CHALLENGE_TARGET, type ChallengeRun, type ScoreEntry } from "@/lib/challenge"
 
@@ -39,7 +38,7 @@ export function ChallengeResult({ run, online, published }: { run: ChallengeRun;
     {run.status === "won" && <TrophyIcon size={32} aria-hidden="true" />}
     <h2 id="challenge-result-title">{endings[run.status]}</h2>
     <p>{run.score} {run.score === 1 ? "reply" : "replies"} from one prompt.{run.score < CHALLENGE_TARGET ? " Reach 20 to win." : ""}</p>
-    {run.submitted ? <p role="status">Result published. <Link href="/challenge/scoreboard">View global scoreboard</Link></p> :
+    {run.submitted ? <p role="status">Result published.</p> :
       <form onSubmit={submit} aria-label="Publish result">
         <label htmlFor="challenger-name">Your name</label>
         <input id="challenger-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={24} autoComplete="nickname" required disabled={saving} aria-describedby="score-privacy" />
@@ -71,15 +70,14 @@ export function Scoreboard() {
     void load(controller.signal)
     return () => controller.abort()
   }, [])
-  return <main className="scoreboard-page">
-    <nav><Link href="/challenge">← Challenge</Link><Link href="/">The room</Link></nav>
-    <header><TrophyIcon size={28} aria-hidden="true" /><h1>Global scoreboard</h1><p>One prompt. Reach 20 replies to win.</p></header>
+  return <section className="scoreboard" aria-labelledby="scoreboard-title">
+    <header><h2 id="scoreboard-title">Global scoreboard</h2><p>One prompt. Reach 20 replies to win.</p></header>
     <div className="scoreboard-tools"><span>Top 50 · ties go to the first published</span><button onClick={() => void load()} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button></div>
     {error && <p role="alert">The scoreboard couldn’t load. Try refreshing.</p>}
-    {!error && entries?.length === 0 && <p className="scoreboard-empty">No scores yet. <Link href="/challenge">Play the first challenge.</Link></p>}
+    {!error && entries?.length === 0 && <p className="scoreboard-empty">No scores yet. Be the first to play.</p>}
     {!!entries?.length && <ol className="scoreboard-list" aria-label="Global rankings">{entries.map((entry) => <li key={entry.id}>
       <span className="score-rank">{entry.rank}</span><span className="score-name">{entry.name}{entry.won && <small>Winner</small>}</span><span className="score-value">{entry.score}<span> / 20</span></span>
     </li>)}</ol>}
     <p className="scoreboard-footnote">Server-verified scores. Names are nicknames, not verified identities.</p>
-  </main>
+  </section>
 }

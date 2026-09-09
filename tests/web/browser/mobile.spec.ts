@@ -93,3 +93,25 @@ test("iOS installation instructions fit without shifting the composer offscreen"
   else await page.screenshot({ path: info.outputPath("install-help.png") })
   await page.getByRole("button", { name: "Dismiss install instructions" }).click()
 })
+
+test("challenge scoreboard and play share an edge-to-edge mobile shell", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await page.route("**/api/challenge", (route) => route.fulfill({ json: { run: null } }))
+  await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [
+    { id: "first", rank: 1, name: "Alex", score: 20, won: true },
+    { id: "second", rank: 2, name: "Sam", score: 14, won: false },
+  ] } }))
+  await page.goto("/challenge")
+  const play = page.getByRole("button", { name: "Play", exact: true })
+  await expect(play).toBeEnabled()
+  await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("Sam")
+  await expect(play).toBeInViewport({ ratio: 1 })
+  await expect(page.getByRole("link", { name: "Back to the room" })).toBeInViewport({ ratio: 1 })
+  if (info.project.name === "visual") await expect(page).toHaveScreenshot("challenge-scoreboard.png")
+  else await page.screenshot({ path: info.outputPath("challenge-scoreboard.png") })
+  await play.click()
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toBeVisible()
+  if (info.project.name === "visual") await expect(page).toHaveScreenshot("challenge-play.png")
+  else await page.screenshot({ path: info.outputPath("challenge-play.png") })
+})
