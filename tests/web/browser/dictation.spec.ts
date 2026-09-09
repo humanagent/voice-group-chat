@@ -1,4 +1,4 @@
-import { expect, test, type Page, type WebSocketRoute } from "../../../web/test-support/browser"
+import { expect, said, test, type Page, type WebSocketRoute } from "../../../web/test-support/browser"
 
 async function recording(page: Page, options: { finalize?: boolean; tokenFailure?: boolean; challenge?: boolean } = {}) {
   let socket: WebSocketRoute | undefined
@@ -25,7 +25,7 @@ async function recording(page: Page, options: { finalize?: boolean; tokenFailure
       if (route.request().method() === "GET") return route.fulfill({ json: { run } })
       sent.push(route.request().postDataJSON().message)
       run = { id: "voice-round", score: 2, target: 20, status: "quiet", submitted: false }
-      return route.fulfill({ contentType: "text/event-stream", body: [{ type: "challenge", run }, { type: "said", agent: "Anna", text: "First reply", audio: null }, { type: "said", agent: "Pepe", text: "Second reply", audio: null }, { type: "done" }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") })
+      return route.fulfill({ contentType: "text/event-stream", body: [{ type: "challenge", run }, said("Anna", "First reply"), said("Pepe", "Second reply"), { type: "done" }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") })
     })
   }
   await page.route("**/api/speak?*", (route) => route.fulfill({ status: 503, json: { error: "Mocked" } }))

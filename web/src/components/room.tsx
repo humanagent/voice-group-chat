@@ -166,7 +166,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
         else if (event.type === "said") {
           if (first) { record("first_reply", performance.now() - start); first = false }
           const spoken = speechEnabled.current && (speech || !!event.audio)
-          if (spoken) voice.current?.play(event.agent, event.audio ? `/api/audio?path=${encodeURIComponent(event.audio)}` : `/api/speak?agent=${encodeURIComponent(event.agent)}&text=${encodeURIComponent(event.text)}`)
+          if (spoken) voice.current?.play(event.agent, event.audio ? `/api/audio?path=${encodeURIComponent(event.audio)}` : `/api/speak?agent=${encodeURIComponent(event.agent)}&text=${encodeURIComponent(event.text)}&grant=${encodeURIComponent(event.grant)}`)
           else show(event.agent, "speaking")
           setLines((current) => [...current, { id: crypto.randomUUID(), speaker: event.agent, text: event.text, spoken, animate: true }])
           sampleFrames()

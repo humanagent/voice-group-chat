@@ -402,6 +402,12 @@ three different people.
 `context/` and `personas/` stay in the image. They are read-only and belong to
 the version that shipped, not to the state.
 
+`SPEECH_SIGNING_SECRET` is optional and only matters beyond one instance. It
+signs the proof that a line came from the room, which `/api/speak` checks before
+it will read anything aloud. Unset, each process mints its own at boot and a
+restart invalidates grants nobody is still holding. Set it to any long random
+string when two instances serve the same room.
+
 ### Boot
 
 `scripts/serve.sh` provisions any home the volume does not have yet, starts the

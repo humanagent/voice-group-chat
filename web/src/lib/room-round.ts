@@ -1,6 +1,7 @@
 import type { Agent } from "./agents"
 import { audienceFor, deliver, ROOM } from "./group"
 import type { RoomEvent } from "./room-stream"
+import { grantFor } from "./speech-grant"
 
 // Shared across route bundles in the single Node process. Scored and ordinary
 // prompts must not interleave in the same agents' histories.
@@ -35,7 +36,9 @@ export async function runRoomRound({ group, message, signal, emit, remaining = (
           const reply = await deliver(agent, ROOM, line.speaker, line.text, signal)
           signal.throwIfAborted()
           if (reply.spoke) {
-            emit({ type: "said", agent: agent.name, text: reply.text, audio: reply.audio })
+            // Signed here, at the one place a reply becomes something the room
+            // has said. The browser hands this back to ask for the voice.
+            emit({ type: "said", agent: agent.name, text: reply.text, audio: reply.audio, grant: grantFor(agent.name, reply.text) })
             replied?.()
             next.push({ speaker: agent.name, text: reply.text })
           } else if (reply.error) {

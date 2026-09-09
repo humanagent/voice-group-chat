@@ -1,15 +1,8 @@
+import { sameOrigin } from "@/lib/same-origin"
 import { parseSamples } from "@/lib/telemetry-schema"
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin")
-  // Host survives TLS-terminating proxies even when request.url uses the internal origin.
-  const host = request.headers.get("host") ?? new URL(request.url).host
-  if (origin) {
-    try { if (new URL(origin).host !== host) return new Response(null, { status: 403 }) }
-    catch { return new Response(null, { status: 403 }) }
-  }
-  const site = request.headers.get("sec-fetch-site")
-  if (site && site !== "same-origin" && site !== "none") return new Response(null, { status: 403 })
+  if (!sameOrigin(request)) return new Response(null, { status: 403 })
   if (!request.headers.get("content-type")?.startsWith("application/json")) return new Response(null, { status: 415 })
   // Bound the actual stream too; Content-Length is not guaranteed or trusted.
   const reader = request.body?.getReader()

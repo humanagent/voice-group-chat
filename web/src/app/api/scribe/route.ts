@@ -1,6 +1,18 @@
 import { key } from "@/lib/elevenlabs"
+import { caller, limiter } from "@/lib/rate-limit"
+import { sameOrigin } from "@/lib/same-origin"
 
 export const dynamic = "force-dynamic"
+
+/**
+ * What one browser, and all of them, may open.
+ *
+ * A person records a few times a minute at most, and each token is one session.
+ * A stranger who could mint them freely would be handing themselves live
+ * transcription on this account, which is why the cheap checks below run before
+ * anything reaches ElevenLabs.
+ */
+const tokenLimit = () => limiter("scribe", { perMinute: 10, burst: 5 }, { perMinute: 60, burst: 20 })
 
 /**
  * A single-use token for realtime transcription.
@@ -8,6 +20,9 @@ export const dynamic = "force-dynamic"
  * The key never reaches the browser: ElevenLabs mints a token good for one
  * session and nothing else, which is the whole reason this endpoint exists
  * rather than the page holding the key itself.
+ *
+ * A token is still worth something to a stranger, so it is rationed and refused
+ * outright to a page that is not this one.
  */
 export async function POST(request: Request) {
   const suppliedId = request.headers.get("x-request-id")
@@ -22,6 +37,17 @@ export async function POST(request: Request) {
     if (!apiKey) {
       outcome = "not_configured"
       return Response.json({ error: "Voice is not configured." }, { status: 503, headers })
+    }
+    if (!sameOrigin(request)) {
+      outcome = "cross_origin"
+      return Response.json({ error: "Use this site's microphone." }, { status: 403, headers })
+    }
+    const allowed = tokenLimit().take(caller(request))
+    if (!allowed.ok) {
+      outcome = "rate_limited"
+      return Response.json({ error: "Too many recordings just now. Try again shortly." }, {
+        status: 429, headers: { ...headers, "Retry-After": String(allowed.retryAfter) },
+      })
     }
     const res = await fetch(
       "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe",

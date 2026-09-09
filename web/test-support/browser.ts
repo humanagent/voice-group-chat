@@ -3,6 +3,18 @@ import { test as base } from "@playwright/test"
 export { expect, type Page, type WebSocketRoute } from "@playwright/test"
 import Axe from "@axe-core/playwright"
 
+/**
+ * A spoken line, as the room emits one.
+ *
+ * The grant is what `/api/speak` checks before it will read anything aloud, so
+ * a mocked round has to carry one or the client discards the reply. Its value
+ * is never verified here — these tests mock the synthesis route too — but its
+ * PRESENCE is part of the contract this client is being tested against.
+ */
+export function said(agent: string, text: string, audio: string | null = null) {
+  return { type: "said" as const, agent, text, audio, grant: "browser-test-grant" }
+}
+
 /** The room ships user-scalable=no: it is a fixed surface, and Safari's browser
  * tab ignores the flag anyway (see layout.tsx). axe's meta-viewport rule reports
  * that as a violation, so it is excluded once here. Every other rule still runs. */

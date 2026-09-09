@@ -88,6 +88,29 @@ aborts the request and the round with it.
 through symlinks before comparing. Deployed there are no such files and it
 returns 404, and the room falls back to marking the line as spoken.
 
+### The two routes that spend the key
+
+`/api/speak` and `/api/scribe` are the only routes that cost money, so they are
+the only ones a stranger has a reason to find.
+
+`/api/speak` reads out what the room said, and nothing else. When a round emits
+a reply the server signs the agent and the text together, and the browser hands
+that signature back to ask for the voice. Text arriving without one, or with one
+issued for different words or a different speaker, is refused. Without this the
+route is an open text-to-speech proxy on the account's key: a length cap bounds
+what one request costs, but only the signature makes it stop being one.
+
+`SPEECH_SIGNING_SECRET` is the signing key. Unset, the process mints its own at
+boot, which is correct for one container: a grant is spent seconds after it is
+issued, so a restart costs at most the clip somebody was mid-way through. Set it
+when more than one instance serves the same room, so a reply signed by one is
+honoured by the next.
+
+Both routes are additionally rationed per caller with a ceiling over all callers
+(`lib/rate-limit.ts`), and both refuse a page that is not this one. The buckets
+live in the process, which is honest for a single container and would need
+shared storage before a second replica.
+
 ## Chat experience
 
 The stage uses layered CSS gradients and transform animations. It does not load

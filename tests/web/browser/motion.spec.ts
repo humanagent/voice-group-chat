@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "../../../web/test-support/browser"
+import { expect, said, test, type Page } from "../../../web/test-support/browser"
 
 const reply = "A friendly conversation continues."
 
@@ -7,7 +7,7 @@ async function mockRoom(page: Page) {
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   await page.route("**/api/telemetry", (route) => route.fulfill({ status: 204 }))
   await page.route("**/api/say", (route) => route.fulfill({ contentType: "text/event-stream", body: [
-    { type: "said", agent: "Anna", text: reply, audio: null }, { type: "done" },
+    said("Anna", reply), { type: "done" },
   ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") }))
   await page.route("**/api/speak?*", (route) => route.fulfill({ json: {
     audio: "AA==", chars: Array.from(reply), starts: Array.from(reply, (_, i) => i < 2 ? 0 : 60),

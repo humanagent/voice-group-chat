@@ -2,7 +2,7 @@ import { isChallengeRun, type ChallengeRun } from "./challenge"
 
 export type RoomEvent =
   | { type: "thinking" | "quiet"; agent: string }
-  | { type: "said"; agent: string; text: string; audio: string | null }
+  | { type: "said"; agent: string; text: string; audio: string | null; grant: string }
   | { type: "failed"; agent: string; error: string }
   | { type: "done" }
   | { type: "challenge"; run: ChallengeRun }
@@ -13,7 +13,7 @@ function parseEvent(data: string): RoomEvent {
   if (event?.type === "challenge" && isChallengeRun(event.run)) return { type: "challenge", run: event.run }
   if (!event || typeof event.agent !== "string") throw new Error("Invalid room event")
   if (event.type === "thinking" || event.type === "quiet") return event
-  if (event.type === "said" && typeof event.text === "string" && (event.audio === null || typeof event.audio === "string")) return event
+  if (event.type === "said" && typeof event.text === "string" && typeof event.grant === "string" && (event.audio === null || typeof event.audio === "string")) return event
   if (event.type === "failed" && typeof event.error === "string") return event
   throw new Error("Invalid room event")
 }
