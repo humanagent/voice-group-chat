@@ -1,5 +1,5 @@
 /* Bump the version when changing offline assets. Only public assets are cached. */
-const CACHE = "the-room-static-v3"
+const CACHE = "the-room-static-v4"
 const SHELL = ["/offline.html", "/offline.css", "/offline.js", "/icons/room-192.png", "/icons/room-512.png", "/icons/room-maskable.png", "/icons/apple-touch-icon.png"]
 
 self.addEventListener("install", (event) => {

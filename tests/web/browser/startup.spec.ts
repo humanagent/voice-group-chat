@@ -71,3 +71,35 @@ test("slow startup protects the input, then allows drafts before the room connec
     releaseRoom()
   }
 })
+
+for (const storage of [true, false]) {
+test(`offline startup protects the draft with storage ${storage ? "available" : "unavailable"}`, async ({ page }) => {
+  let release: () => void = () => {}
+  const script = new Promise<void>((resolve) => { release = resolve })
+  await page.addInitScript((available) => {
+    if (available) localStorage.setItem("the-room-draft", "Saved before going offline")
+    else Object.defineProperty(window, "localStorage", { get: () => { throw new DOMException("Storage unavailable", "SecurityError") } })
+  }, storage)
+  await page.route("**/offline.js", async (route) => { await script; await route.continue() })
+  try {
+    await page.goto("/offline.html", { waitUntil: "commit" })
+    const input = page.getByRole("textbox", { name: "Your next message" })
+    await expect(input).toBeVisible()
+    await expect(input).toBeDisabled()
+    const before = await input.boundingBox()
+    release()
+    await expect(input).toBeEditable()
+    await expect(input).toHaveValue(storage ? "Saved before going offline" : "")
+    await expect(input).toHaveAttribute("placeholder", "Type a message…")
+    expect(await input.boundingBox()).toEqual(before)
+    await input.fill("A thought to keep offline")
+    if (storage) {
+      await expect.poll(() => page.evaluate(() => localStorage.getItem("the-room-draft"))).toBe("A thought to keep offline")
+      await expect(page.getByRole("status")).toHaveText("Draft saved on this device.")
+    } else {
+      await expect(page.getByRole("status")).toContainText("Storage is unavailable")
+      await expect(input).toHaveValue("A thought to keep offline")
+    }
+  } finally { release() }
+})
+}

@@ -128,7 +128,8 @@ part of that local draft. Shared-device users should clear drafts when finished.
 The initial HTML keeps the input disabled until its browser handlers are ready,
 so typing during a slow script download cannot be silently lost. This guard is
 independent of the room connection: once interactive, drafts remain editable
-while connecting or offline. It adds no footer spacer or layout transition.
+while connecting or offline. The cached offline editor follows the same rule,
+even if draft storage is unavailable. This adds no footer spacer or layout transition.
 
 ## Install and offline behavior
 
