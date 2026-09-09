@@ -41,7 +41,10 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
   await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveCount(0)
   await page.getByRole("button", { name: restored && !restored.submitted ? "View result" : "Play", exact: true }).click()
-  if (!restored || restored.submitted) await expect(page.getByRole("textbox", { name: "Message the room" })).toBeEditable()
+  if (!restored || restored.submitted) {
+    await page.getByRole("dialog", { name: "Keep them talking" }).getByRole("button", { name: "Play", exact: true }).click()
+    await expect(page.getByRole("textbox", { name: "Message the room" })).toBeEditable()
+  }
   return { starts: () => starts }
 }
 
@@ -63,6 +66,7 @@ test("20 wins the challenge, asks for a name, and publishes to the global scoreb
   await expect(page.getByText("Winner", { exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/challenge$/)
   await page.getByRole("button", { name: "Play", exact: true }).click()
+  await page.getByRole("dialog", { name: "Keep them talking" }).getByRole("button", { name: "Play", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Message the room" })).toBeEditable()
   await expect(page.getByText("Next prompt counts", { exact: true })).toBeVisible()
   expect(round.starts()).toBe(1)
@@ -76,6 +80,7 @@ test("three replies produce three points, not a win, and publication can be skip
   await expect(page.getByRole("heading", { name: "Round finished" })).toBeVisible()
   await expect(page.getByText("You won!")).toHaveCount(0)
   await page.getByRole("button", { name: "Skip & play again" }).click()
+  await page.getByRole("dialog", { name: "Keep them talking" }).getByRole("button", { name: "Play", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Message the room" })).toBeEditable()
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page.getByRole("progressbar")).toHaveCount(0)
@@ -104,6 +109,7 @@ test("scoreboard and play share a URL, preserve drafts, and both can exit to the
   await expect(page).toHaveURL(/\/challenge$/)
   expect(round.starts()).toBe(0)
   await page.getByRole("button", { name: "Play", exact: true }).click()
+  await page.getByRole("dialog", { name: "Keep them talking" }).getByRole("button", { name: "Play", exact: true }).click()
   await expect(input).toBeEditable()
   await expect(input).toHaveValue("Keep this draft")
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
@@ -125,6 +131,29 @@ test("challenge is the single leaderboard page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible()
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+})
+
+test("Challenge always explains the game; dismissing the intro never records or clears the draft", async ({ page }) => {
+  const round = await setup(page)
+  const input = page.getByRole("textbox", { name: "Message the room" })
+  await input.fill("Keep my room draft")
+  await page.getByRole("button", { name: "Room mode", exact: true }).click()
+  let tokens = 0
+  await page.route("**/api/scribe", (route) => { tokens++; return route.fulfill({ status: 503, json: {} }) })
+  for (let visit = 0; visit < 2; visit++) {
+    await page.getByRole("button", { name: "Start challenge" }).click()
+    const intro = page.getByRole("dialog", { name: "Keep them talking" })
+    await expect(intro).toBeVisible()
+    await expect(intro.getByLabel("0 of 20 replies")).toHaveText("0/20")
+    await expect(intro.getByRole("button", { name: "Play", exact: true })).toBeFocused()
+    expect(tokens).toBe(0)
+    expect(round.starts()).toBe(0)
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+    await page.keyboard.press("Escape")
+    await expect(intro).toHaveCount(0)
+    await expect(input).toHaveValue("Keep my room draft")
+    await expect(input).toHaveAttribute("placeholder", "Type a message…")
+  }
 })
 
 test("a late saved-result response cannot replace an input the player has tapped", async ({ page }) => {

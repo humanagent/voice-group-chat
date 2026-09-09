@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowDownToLineIcon, ListOrderedIcon, MessagesSquareIcon, RefreshCwIcon, TrophyIcon, WifiOffIcon, XIcon } from "lucide-react"
 import { ChallengeResult, Scoreboard } from "@/components/challenge-score"
+import { ChallengeIntro } from "@/components/challenge-intro"
 import { CHALLENGE_PROMPT_LIMIT, type ChallengeRun } from "@/lib/challenge"
 import { ChatMessage, type Line } from "@/components/chat-message"
 import { Composer, type ComposerHandle } from "@/components/composer"
@@ -32,6 +33,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   const [scoreboard, setScoreboard] = useState(initialScoreboard)
   const [counting, setCounting] = useState(false)
   const [dismissedRun, setDismissedRun] = useState<string | null>(null)
+  const [introOpen, setIntroOpen] = useState(false)
   const pwa = usePwa()
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const waiting = useRef<Pending[]>([])
@@ -225,8 +227,15 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
     : recording === "connecting" ? "Connecting microphone…" : recording === "finishing" ? "Finishing transcription…"
     : listening ? "Recording…" : busy ? "Responding…" : counting ? "Next prompt counts" : null
 
+  const canChallenge = !opening && !!chat && !busy && !listening && pwa.online && challengeRun?.status !== "running"
+
+  function openChallenge() {
+    if (canChallenge) setIntroOpen(true)
+  }
+
   function startChallenge() {
     if (opening || !chat || busy || listening || !pwa.online || challengeRun?.status === "running") return
+    setIntroOpen(false)
     voice.current?.stop()
     setChallengeRun(null)
     setDismissedRun(null)
@@ -256,7 +265,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
           <div><h1>{scoreboard ? "Challenge" : "The room"}</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
           <nav className="room-actions" aria-label="Room modes">
             <button className="icon-button" onClick={showRoom} disabled={listening} aria-label={scoreboard ? "Back to the room" : "Room mode"} aria-current={!scoreboard ? "page" : undefined} title="Room"><MessagesSquareIcon size={18} /></button>
-            <button className="icon-button" onClick={startChallenge} disabled={opening || !chat || busy || listening || !pwa.online || challengeRun?.status === "running"} aria-label="Start challenge" title="Challenge"><TrophyIcon size={18} /></button>
+            <button className="icon-button" onClick={openChallenge} disabled={!canChallenge} aria-label="Start challenge" title="Challenge"><TrophyIcon size={18} /></button>
             <button className="icon-button" onClick={showScoreboard} disabled={listening} aria-label="Global scoreboard" aria-current={scoreboard ? "page" : undefined} title="Leaderboard"><ListOrderedIcon size={18} /></button>
             {!pwa.installed && (pwa.canInstall || pwa.ios) && <button className="icon-button" onClick={() => pwa.canInstall ? void pwa.install() : setInstallHelp(true)} aria-label="Install the room" title="Install the room"><ArrowDownToLineIcon size={18} /></button>}
           </nav>
@@ -275,18 +284,19 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
         {!busy && challengeRun?.status === "running" && <div className="room-notice" role="status"><span>Your previous attempt is finishing. Its saved result will appear here.</span></div>}
         {error && <div className="room-notice" role="alert"><span>{error}</span>{!chat && <button onClick={() => { setOpening(true); setError(null); void open() }} disabled={opening || !pwa.online}><RefreshCwIcon size={14} /> Reconnect</button>}<button className="notice-dismiss" onClick={() => setError(null)} aria-label="Dismiss notification"><XIcon size={14} /></button></div>}
         {!pwa.online && <div className="room-notice"><WifiOffIcon size={14} /><span>You’re offline. You can keep writing; send when you’re back.</span></div>}
-        {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || opening || !!talking || pwa.updating} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} />{pwa.updating ? "Updating…" : "Update"}</button></div>}
+        {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || introOpen || opening || !!talking || pwa.updating} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} />{pwa.updating ? "Updating…" : "Update"}</button></div>}
         {installHelp && <div className="room-notice" role="status"><span>In Safari, tap Share, then “Add to Home Screen”.</span><button onClick={() => setInstallHelp(false)} aria-label="Dismiss install instructions"><XIcon size={14} /></button></div>}
         </div>
         {scoreboard && (
           <footer className="composer-wrap challenge-footer challenge-start">
-            <button className="confirm-button" disabled={opening || !chat || busy || !pwa.online || challengeRun?.status === "running"} onClick={startChallenge}>Play</button>
+            <button className="confirm-button" disabled={!canChallenge} onClick={openChallenge}>Play</button>
             {savedAttempt && challengeRun.status !== "running" && <button className="saved-result-button" onClick={() => { setDismissedRun(null); setScoreboard(false) }}>View result</button>}
           </footer>
         )}
         <Composer ready={!!chat && !opening && challengeRun?.status !== "running" && (!counting || !busy)} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={counting ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={counting ? "Your one prompt…" : undefined} />
       </section>
-      {!scoreboard && !busy && !listening && challengeRun && challengeRun.status !== "running" && dismissedRun !== challengeRun.id && <ChallengeResult key={challengeRun.id} run={challengeRun} online={pwa.online} published={setChallengeRun} dismiss={() => setDismissedRun(challengeRun.id)} playAgain={startChallenge} />}
+      {introOpen && <ChallengeIntro ready={canChallenge} play={startChallenge} dismiss={() => setIntroOpen(false)} />}
+      {!introOpen && !scoreboard && !busy && !listening && challengeRun && challengeRun.status !== "running" && dismissedRun !== challengeRun.id && <ChallengeResult key={challengeRun.id} run={challengeRun} online={pwa.online} published={setChallengeRun} dismiss={() => setDismissedRun(challengeRun.id)} playAgain={openChallenge} />}
     </main>
   )
 }

@@ -55,7 +55,14 @@ async function recording(page: Page, options: { finalize?: boolean; tokenFailure
     sent, telemetry, commits: () => commits, tokens: () => tokens,
     event: (type: string, text: string) => socket!.send(JSON.stringify({ message_type: type, text })),
     begin: async () => {
+      const before = tokens
       await page.getByRole("button", { name: options.challenge ? "Start challenge" : "Record a voice message" }).click()
+      if (options.challenge) {
+        const intro = page.getByRole("dialog", { name: "Keep them talking" })
+        await expect(intro).toBeVisible()
+        expect(tokens).toBe(before)
+        await intro.getByRole("button", { name: "Play", exact: true }).click()
+      }
       if (!options.tokenFailure) await expect(page.getByRole("button", { name: "Send recording", exact: true })).toBeEnabled()
     },
   }
@@ -141,7 +148,7 @@ test("token failures leave typing available and do not allocate a microphone", a
   expect(session.sent).toEqual([])
 })
 
-test("Challenge uses the existing composer microphone and only the result opens a modal", async ({ page }) => {
+test("Challenge Play closes the intro and uses the existing microphone before the result modal", async ({ page }) => {
   const session = await recording(page, { challenge: true })
   expect(session.tokens()).toBe(0)
   await expect(page.getByRole("button", { name: "Global scoreboard" })).toBeVisible()
@@ -198,6 +205,10 @@ test("leaderboard Play activates the same recorder without clearing the room or 
   await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))
   await page.getByRole("button", { name: "Global scoreboard" }).click()
   await page.getByRole("button", { name: "Play", exact: true }).click()
+  const intro = page.getByRole("dialog", { name: "Keep them talking" })
+  await expect(intro).toBeVisible()
+  expect(session.tokens()).toBe(0)
+  await intro.getByRole("button", { name: "Play", exact: true }).click()
   await expect(page.getByRole("button", { name: "Send recording", exact: true })).toBeEnabled()
   await expect(page.getByRole("dialog")).toHaveCount(0)
   expect(session.tokens()).toBe(1)

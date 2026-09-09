@@ -1,5 +1,52 @@
 import { expect, test } from "../../../web/test-support/browser"
 
+test("the bottom of a scrolled PWA transcript cannot cover the input or its footer", async ({ page }) => {
+  await page.setViewportSize({ width: 440, height: 956 })
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { get: () => true }))
+  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
+  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: Array.from({ length: 40 }, (_, index) => ({ speaker: "Anna", text: `Message ${index}. ` + "A longer reply. ".repeat(12), spoken: false })) } }))
+  await page.goto("/")
+  await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--room-safe-top", "62px")
+    document.documentElement.style.setProperty("--room-safe-bottom", "34px")
+  })
+  const input = page.getByRole("textbox", { name: "Message the room" })
+  // The reported obstruction happens at rest, before the input is focused.
+  await expect(input).not.toBeFocused()
+  await page.locator(".room-conversation > div").evaluate((node) => { node.scrollTop = node.scrollHeight })
+  await expect.poll(() => input.evaluate((node) => {
+    const rect = node.getBoundingClientRect()
+    return document.elementFromPoint(rect.x + rect.width / 2, rect.bottom - 3) === node
+  })).toBe(true)
+  await input.fill("A draft at the bottom")
+  const layers = await page.locator(".room-conversation").evaluate((node) => ({
+    outer: getComputedStyle(node).overflowY,
+    inner: getComputedStyle(node.firstElementChild!).overflowY,
+    isolated: getComputedStyle(node).isolation,
+  }))
+  expect(layers).toEqual({ outer: "hidden", inner: "auto", isolated: "isolate" })
+  for (const height of [956, 600, 360, 600, 956]) {
+    await page.evaluate((height) => {
+      Object.defineProperty(visualViewport!, "height", { configurable: true, value: height })
+      visualViewport!.dispatchEvent(new Event("resize"))
+      const scroller = document.querySelector(".room-conversation > div")!
+      scroller.scrollTop = scroller.scrollHeight
+    }, height)
+    await expect.poll(() => input.evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      return [rect.top + 3, rect.bottom - 3].every((y) => document.elementFromPoint(rect.x + rect.width / 2, y) === node)
+    })).toBe(true)
+    const footer = await page.locator(".composer-wrap").evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      return { bottom: rect.bottom, ownsBottom: node.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.bottom - 2)) }
+    })
+    expect(footer).toEqual({ bottom: height, ownsBottom: true })
+    await expect(page.locator(".stage-wrap")).toBeInViewport({ ratio: 1 })
+    await expect(input).toBeFocused()
+  }
+})
+
 test("first input tap requests focus without native centering; swipes and selection stay native", async ({ page }) => {
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
@@ -152,8 +199,13 @@ test("tap focus survives keyboard frames and multiline sizing has no breakpoint 
         height: { configurable: true, value: height }, offsetTop: { configurable: true, value: 0 },
       })
       visualViewport!.dispatchEvent(new Event("resize"))
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      // A stalled animation frame must not let the 180ms dismissal timer
+      // expand the room while a large keyboard inset is still present.
+      if (height === 500) await new Promise((resolve) => setTimeout(resolve, 250))
+      // Resize is handled synchronously. Sample before the next paint: slow
+      // CI frames may legitimately settle the final small safe-area inset.
       samples.push({ height, room: document.querySelector(".room-page")!.getBoundingClientRect().height })
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     }
     return samples
   })

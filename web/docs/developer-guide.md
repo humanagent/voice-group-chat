@@ -46,7 +46,8 @@ and the distinction between a demo win and prize-grade anti-cheat.
 | Server configuration | [`app/page.tsx`](../src/app/page.tsx) | Only agent names and a speech-enabled boolean reach the client; never API keys. |
 | Conversation orchestration | [`components/room.tsx`](../src/components/room.tsx) | Serialize sends; distinguish interrupted/uncertain delivery; do not retry implicitly. |
 | Shared server round | [`lib/room-round.ts`](../src/lib/room-round.ts) | Normal/scored prompts share `ROOM`, delivery and a writer lock; scoring never creates or deletes a session. |
-| Draft, input and capture | [`components/composer.tsx`](../src/components/composer.tsx) | Challenge/Play calls the existing microphone action. Partial transcription updates stay here, outside the conversation render tree. |
+| Challenge rules | [`components/challenge-intro.tsx`](../src/components/challenge-intro.tsx) | Always explain the game; only Play activates the composer's existing microphone. |
+| Draft, input and capture | [`components/composer.tsx`](../src/components/composer.tsx) | Play calls the existing microphone action. Partial transcription updates stay here, outside the conversation render tree. |
 | React recording lifecycle | [`hooks/use-dictation.ts`](../src/hooks/use-dictation.ts) | Adapts SDK/token calls and cleans up on unmount; reports only status transitions to the room. |
 | Recording state machine | [`lib/dictation.ts`](../src/lib/dictation.ts) | Owns exactly one socket/microphone, flushes before commit, ignores stale callbacks. Dependencies are injectable for tests. |
 | Credential exchange | [`app/api/scribe/route.ts`](../src/app/api/scribe/route.ts) | Server-only key, single-use token, no-store responses, bounded upstream wait. |

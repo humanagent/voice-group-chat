@@ -55,8 +55,12 @@ export function useRoomViewport() {
         // iOS may dismiss the keyboard without blurring the input. Only use
         // this small-inset heuristic AFTER a real keyboard has been observed
         // and resize events stop, never to gate its opening/closing frames.
-        const nearlyClosed = sawKeyboard && window.innerHeight - (viewport?.height ?? window.innerHeight) < 120 && (viewport?.offsetTop ?? 0) < 1
-        if (isEditing() && !nearlyClosed) return
+        const inset = window.innerHeight - (viewport?.height ?? window.innerHeight)
+        const panned = (viewport?.offsetTop ?? 0) >= 1
+        const nearlyClosed = sawKeyboard && inset < 120 && !panned
+        // Blur can arrive well before the final resize, especially on a busy
+        // device. A quiet timer is not evidence that a large keyboard is gone.
+        if (inset >= 120 || panned || (isEditing() && !nearlyClosed)) return
         // Once keyboard events settle, discard iOS's occasionally stale visual
         // height. The resting CSS height fills the window without a bottom strip.
         trackingKeyboard = false

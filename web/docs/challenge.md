@@ -1,9 +1,10 @@
 # Conversation challenge: one prompt, 20 replies
 
 The room header has separate **Challenge** (trophy) and **Leaderboard** actions.
-Challenge activates the **existing composer microphone** in that button gesture,
-just like tapping the chat's mic. There is no separate voice input or capture
-modal. **Send recording** waits for the committed final transcript and starts
+Challenge always opens a brief rules modal with a **0/20** counter. Nothing is
+recorded yet. **Play** closes that modal and activates the **existing composer
+microphone** in that button gesture, just like tapping the chat's mic. There is
+no separate voice input or capture modal. **Send recording** waits for the committed final transcript and starts
 counting in the **existing shared room**. It starts a new counter, not a new
 conversation. Discard releases the microphone without sending; the next typed
 or recorded prompt still counts. **Room mode** disarms the counter. Capture
@@ -29,8 +30,9 @@ the first publication. Each attempt appears at most once. Names may repeat:
 they are nicknames, not accounts or verified identities. Winning is a game
 state, not a monetary payout or prize-redemption integration.
 
-`/challenge` is the leaderboard page; its centered **Play** button activates the
-same composer microphone as the trophy. There is no secondary scoreboard route or
+`/challenge` is the leaderboard page; its centered **Play** button opens the
+same rules modal as the trophy. Retry also shows the rules, not just on a first visit.
+There is no secondary scoreboard route or
 separate challenge room. Returning to the scoreboard preserves an unfinished draft
 or saved result. After a reload, **View result** recovers an unpublished score
 without sending a prompt. **Back to the room** is always in the header; leaving
@@ -58,7 +60,8 @@ one prompt → server-owned attempt → actual agent replies → persisted score
 | `lib/challenge-runner.ts` | Count new replies, persist terminal outcomes and stop exactly at 20. No session deletion. |
 | `lib/challenge-store.ts` | Atomic SQLite updates, attempt ownership, admission limits, ranking and idempotent publication. |
 | `lib/challenge-http.ts` | HttpOnly browser cookie, same-origin writes, bounded JSON and safe errors. |
-| `components/composer.tsx` | One recorder for normal/scored prompts; Challenge/Play calls the same start action as the microphone button. |
+| `components/challenge-intro.tsx` | Rules and zero counter only; Play delegates to the existing composer. No capture state. |
+| `components/composer.tsx` | One recorder for normal/scored prompts; the intro's Play calls the same start action as the microphone button. |
 | `components/challenge-score.tsx` | Centered accessible result/name dialog and scoreboard. No score calculation. |
 
 `POST /api/challenge` accepts **only** `{ "message": "..." }`, at most 2,000
@@ -166,7 +169,7 @@ mocked gateways; browser tests mock APIs and never use provider credits.
   cross-site requests, byte limits, ownership, cookies and shared-room concurrency.
 - `browser/challenge.spec.ts`: win/name/ranking flow, below-target result, skip,
   reload recovery, single-prompt guard, accessibility and compact mobile form.
-- `browser/dictation.spec.ts`: one-click challenge recording, committed words
+- `browser/dictation.spec.ts`: rules → Play → existing recorder, committed words
   submitted once, result modal, cancellation cleanup and recovered-text fallback.
 
 These tests do not claim live model performance, identical personalities across

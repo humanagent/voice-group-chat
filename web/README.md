@@ -258,6 +258,8 @@ Installed-PWA fixtures include nonzero safe areas and a stale visual viewport:
 the footer consumes the home-indicator inset once, then only 8px above the keyboard.
 First-tap focus uses `preventScroll` inside the touch gesture (without moving or
 hiding the input); subsequent selection, swipes and pinch zoom stay native.
+The transcript has one scroll surface, clipped to its own stacking context;
+the in-flow footer sits above it so scrolling to the end cannot cover the input.
 The standalone resting surface uses `100vh`, while actual keyboard resize frames
 use `visualViewport`. Focus alone never adopts a short stale viewport height.
 This handles WebKit's documented [installed-app height discrepancy](https://bugs.webkit.org/show_bug.cgi?id=254868);

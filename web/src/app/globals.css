@@ -206,8 +206,10 @@ button:disabled { opacity: .35; }
 .voice-bars i { width: 2px; height: 9px; background: #ceb4ec; border-radius: 2px; animation: voice-bar .8s ease-in-out infinite alternate; }
 .voice-bars i:nth-child(2) { animation-delay: -.3s; }
 .voice-bars i:nth-child(3) { animation-delay: -.6s; }
-.room-conversation { min-height: 0; flex: 1 1 0%; overscroll-behavior: contain; }
-.room-conversation > div { scrollbar-width: thin; scrollbar-color: #ffffff20 transparent; overscroll-behavior: contain; }
+/* Only the inner transcript scrolls. Clip its paint/scroll controls to this
+   region so a promoted scrolling layer cannot cover the composer at the end. */
+.room-conversation { min-height: 0; flex: 1 1 0%; overflow: hidden; isolation: isolate; overscroll-behavior: contain; }
+.room-conversation > div { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #ffffff20 transparent; overscroll-behavior: contain; }
 .transcript-content { display: flex; flex-direction: column; min-height: 100%; padding: 22px 32px 16px; gap: 17px; }
 .room-empty { margin: auto 0; text-align: center; padding: 18px 12px 24px; font-size: 12px; color: #aaa6b5; }
 .chat-message { display: flex; align-items: flex-start; gap: 10px; flex-shrink: 0; }
@@ -233,7 +235,8 @@ button:disabled { opacity: .35; }
 .typing-dots { display: flex; gap: 4px; }
 .typing-dots i { height: 4px; width: 4px; border-radius: 50%; background: #c3afda; animation: status-pulse 1.3s ease-in-out infinite; }
 .typing-dots i:nth-child(2) { animation-delay: .15s; }.typing-dots i:nth-child(3) { animation-delay: .3s; }
-.composer-wrap { flex-shrink: 0; padding: 12px 24px 15px; background: #17181f; }
+/* Stay in the flex layout (no overlay/spacer), above the transcript's layer. */
+.composer-wrap { position: relative; z-index: 1; flex-shrink: 0; padding: 12px 24px 15px; background: #17181f; }
 .composer { display: flex; align-items: flex-end; gap: 8px; border: 1px solid #ffffff1a; background: #202129; border-radius: 19px; padding: 9px 10px 9px 18px; box-shadow: 0 2px 8px #0000000a; transition: border-color 200ms, box-shadow 200ms; }
 .composer:focus-within { border-color: #b6a2d869; box-shadow: 0 0 0 3px #b6a2d807; }
 /* Reserve space for the persistent stage, controls and transcript; shrink a
@@ -322,6 +325,8 @@ html[data-room-standalone="true"] .composer-wrap { padding-bottom: max(8px, calc
 .challenge-result .confirm-button { width: 100%; margin-top: 20px; }
 .challenge-result .result-again { width: 100%; min-height: 48px; margin-top: 8px; color: #c3b9d5; font-size: 13px; }
 .challenge-result button:disabled { opacity: .55; }
+.challenge-intro { padding-bottom: 24px; }
+.challenge-intro .intro-play { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .challenge-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .challenge-start { justify-content: center; flex-direction: column; gap: 0; }
 .challenge-start .saved-result-button { background: none; color: #c3b9d5; font-size: 13px; }

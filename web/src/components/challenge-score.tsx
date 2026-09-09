@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { TrophyIcon, XIcon } from "lucide-react"
 import { CHALLENGE_TARGET, type ChallengeRun, type ScoreEntry } from "@/lib/challenge"
 import { useKeyboardFocus } from "@/hooks/use-keyboard-focus"
@@ -17,7 +17,8 @@ export function ChallengeResult({ run, online, published, dismiss, playAgain }: 
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
+  // Establish the native top layer/focus before the form can be interacted with.
+  useLayoutEffect(() => {
     const element = dialog.current!
     element.showModal()
     return () => element.close()
