@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.policy import voice
 
 
@@ -33,19 +35,94 @@ def test_it_is_off_unless_both_the_switch_and_a_key_are_there(monkeypatch, tmp_p
     assert voice.why_not() == ""
 
 
-def test_a_provider_that_fails_costs_the_audio_not_the_answer(monkeypatch) -> None:
-    """A reply you can read is worth more than one you can hear."""
+class _FakeElevenLabs:
+    """Stands in for the SDK client, and records what it was asked for.
+
+    What these tests are actually about: the voice arrives as an argument. It
+    used to arrive by replacing a private function on the gateway's TTS tool for
+    the duration of the call, so "did this agent get its own voice" could only
+    be answered by inspecting a monkeypatch.
+    """
+
+    def __init__(self, chunks=(b"ID3", b"clip"), fails: bool = False) -> None:
+        self.calls: list[dict[str, object]] = []
+        self._chunks = chunks
+        self._fails = fails
+        self.text_to_speech = self
+
+    def convert(self, **kwargs: object):
+        self.calls.append(kwargs)
+        if self._fails:
+            raise RuntimeError("down")
+        return iter(self._chunks)
+
+
+def _synthesiser(monkeypatch, tmp_path, **kwargs) -> _FakeElevenLabs:
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setenv("SPEAK_REPLIES", "1")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")
+    monkeypatch.setattr(voice, "_client_for", None)
+    fake = _FakeElevenLabs(**kwargs)
+    monkeypatch.setattr("elevenlabs.client.ElevenLabs", lambda **_: fake)
+    return fake
 
-    import sys
-    import types
 
-    module = types.ModuleType("tools.tts_tool")
-    module.text_to_speech_tool = lambda text: (_ for _ in ()).throw(RuntimeError("down"))
-    monkeypatch.setitem(sys.modules, "tools.tts_tool", module)
+def test_the_agents_own_voice_is_passed_to_the_api(monkeypatch, tmp_path) -> None:
+    """The whole reason the monkeypatch existed. A voice is an argument."""
+    fake = _synthesiser(monkeypatch, tmp_path)
+    voice.speak("hey", voice_id="a-particular-voice")
 
-    assert voice.speak("hey") is None
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["voice_id"] == "a-particular-voice"
+    assert fake.calls[0]["text"] == "hey"
+    assert fake.calls[0]["model_id"] == voice.TTS_MODEL
+
+
+def test_the_clip_lands_in_this_agents_own_home(monkeypatch, tmp_path) -> None:
+    """Each agent is its own process with its own home, and the web app serves
+    clips only from these directories — a file written anywhere else is one
+    nothing is allowed to play."""
+    _synthesiser(monkeypatch, tmp_path)
+    path = voice.speak("hey", voice_id="v")
+
+    assert path is not None
+    written = Path(path)
+    assert written.parent == tmp_path / "cache" / "audio"
+    assert written.read_bytes() == b"ID3clip"
+
+
+def test_two_replies_in_the_same_moment_do_not_overwrite_each_other(monkeypatch, tmp_path) -> None:
+    _synthesiser(monkeypatch, tmp_path)
+    first = voice.speak("one", voice_id="v")
+    second = voice.speak("two", voice_id="v")
+    assert first != second
+
+
+def test_emoji_are_stripped_before_the_line_is_sent(monkeypatch, tmp_path) -> None:
+    fake = _synthesiser(monkeypatch, tmp_path)
+    voice.speak("Hey Fabri 👋", voice_id="v")
+    assert fake.calls[0]["text"] == "Hey Fabri"
+
+
+def test_a_provider_that_fails_costs_the_audio_not_the_answer(monkeypatch, tmp_path) -> None:
+    """A reply you can read is worth more than one you can hear."""
+    _synthesiser(monkeypatch, tmp_path, fails=True)
+    assert voice.speak("hey", voice_id="v") is None
+
+
+def test_an_empty_clip_is_reported_as_no_audio_and_left_nowhere(monkeypatch, tmp_path) -> None:
+    """A refused request can still produce a file. Handing that back is a
+    client trying to play silence rather than saying nothing."""
+    _synthesiser(monkeypatch, tmp_path, chunks=())
+    assert voice.speak("hey", voice_id="v") is None
+    assert list((tmp_path / "cache" / "audio").iterdir()) == []
+
+
+def test_nothing_is_synthesised_when_speech_is_switched_off(monkeypatch, tmp_path) -> None:
+    fake = _synthesiser(monkeypatch, tmp_path)
+    monkeypatch.delenv("SPEAK_REPLIES")
+    assert voice.speak("hey", voice_id="v") is None
+    assert fake.calls == []
 
 
 def test_a_silent_turn_makes_no_audio(monkeypatch) -> None:
