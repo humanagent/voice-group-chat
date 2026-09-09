@@ -254,12 +254,22 @@ update and draft recovery. Real service-worker offline tests run on Chromium:
 
 Visual assertions cover 320–430px portrait screens, 844px landscape, short tablet
 windows, multiline drafts, keyboard-height/offline notices and iOS install help.
+Installed-PWA fixtures include nonzero safe areas and a stale visual viewport:
+the footer consumes the home-indicator inset once, then only 8px above the keyboard.
+First-tap focus uses `preventScroll` inside the touch gesture (without moving or
+hiding the input); subsequent selection, swipes and pinch zoom stay native.
+The standalone resting surface uses `100vh`, while actual keyboard resize frames
+use `visualViewport`. Focus alone never adopts a short stale viewport height.
+This handles WebKit's documented [installed-app height discrepancy](https://bugs.webkit.org/show_bug.cgi?id=254868);
+it still needs confirmation on a physical installed iPhone PWA.
 `pnpm test:visual` compares committed screenshots in the pinned
 `mcr.microsoft.com/playwright:v1.63.0-noble` Linux/amd64 environment used by CI.
 Do not update baselines on macOS: system fonts differ. Review the images before
 accepting changes with `pnpm test:visual --update-snapshots` in that container.
-`ROOM_TEST_URL` can point visual tests at an already-running fixture server;
-normal runs start the isolated port-3100 server automatically.
+`ROOM_TEST_URL` can point visual tests at an already-running HTTPS/localhost
+fixture server. Plain HTTP LAN/Docker hostnames are not secure browser contexts
+and cannot exercise voice/UUID APIs. Prefer the default isolated port-3100
+server inside the container, which starts automatically without credentials.
 
 CI uploads screenshots/traces as `browser-review`, including successful runs.
 After testing, use `pnpm build && pnpm start` for a normal local build (without

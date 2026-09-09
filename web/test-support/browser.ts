@@ -7,6 +7,10 @@ export { default as AxeBuilder } from "@axe-core/playwright"
 export const test = base.extend<{ blockMonitoring: void }>({
   blockMonitoring: [async ({ context }, use) => {
     await context.route("https://sentry.invalid/**", (route) => route.fulfill({ json: {} }))
+    // Score recovery is read on both entry URLs. Page-specific challenge mocks
+    // override this; ordinary tests never see a real browser's saved result.
+    await context.route("**/api/challenge", (route) => route.request().method() === "GET" ? route.fulfill({ json: { run: null } }) : route.abort())
+    await context.route("**/api/scribe", (route) => route.fulfill({ status: 503, json: { error: "Microphone mocked; voice tests override this route" } }))
     await use()
   }, { auto: true }],
 })

@@ -45,7 +45,8 @@ and the distinction between a demo win and prize-grade anti-cheat.
 | --- | --- | --- |
 | Server configuration | [`app/page.tsx`](../src/app/page.tsx) | Only agent names and a speech-enabled boolean reach the client; never API keys. |
 | Conversation orchestration | [`components/room.tsx`](../src/components/room.tsx) | Serialize sends; distinguish interrupted/uncertain delivery; do not retry implicitly. |
-| Draft and input rendering | [`components/composer.tsx`](../src/components/composer.tsx) | Partial transcription updates stay here, outside the conversation render tree. |
+| Shared server round | [`lib/room-round.ts`](../src/lib/room-round.ts) | Normal/scored prompts share `ROOM`, delivery and a writer lock; scoring never creates or deletes a session. |
+| Draft, input and capture | [`components/composer.tsx`](../src/components/composer.tsx) | Challenge/Play calls the existing microphone action. Partial transcription updates stay here, outside the conversation render tree. |
 | React recording lifecycle | [`hooks/use-dictation.ts`](../src/hooks/use-dictation.ts) | Adapts SDK/token calls and cleans up on unmount; reports only status transitions to the room. |
 | Recording state machine | [`lib/dictation.ts`](../src/lib/dictation.ts) | Owns exactly one socket/microphone, flushes before commit, ignores stale callbacks. Dependencies are injectable for tests. |
 | Credential exchange | [`app/api/scribe/route.ts`](../src/app/api/scribe/route.ts) | Server-only key, single-use token, no-store responses, bounded upstream wait. |
@@ -169,14 +170,17 @@ Chat routes lock document scrolling and keep the transcript as the scroll
 container. `use-room-viewport.ts` follows both visual viewport **resize and pan**
 while an input is focused and the keyboard reduces available height. Only
 tracking height leaves the page displaced after iOS scrolls a field into view.
-Without a keyboard, `100dvh` fills the standalone window; a stale, slightly
-shorter visual viewport must not leave a permanent blank strip below the chat.
+Without a keyboard, `100dvh` fills browser tabs and `100vh` fills installed PWAs;
+the standalone height avoids WebKit's safe-area discrepancy. First focus does
+not adopt a short stale visual viewport before a real resize occurs.
 Keyboard mode also removes the extra home-indicator padding above the keyboard.
 The mobile header and orb stage keep the same geometry before and after focus;
 only the transcript area shrinks as the composer moves above the keyboard.
 The stage is never hidden to make space. Long drafts scroll inside the input
-in compact viewports, and programmatic refocus uses `preventScroll`.
-Route cleanup restores normal scrolling for the global scoreboard.
+in compact viewports. First input taps request focus with `preventScroll`
+inside the touch gesture; later taps, selection, swipes and zoom stay native.
+The leaderboard uses the same locked shell with its own scroll area; it never
+unmounts the room or starts a microphone. Leaving the app restores document scrolling.
 
 `browser/viewport.spec.ts` simulates a tall layout viewport with a smaller,
 offset visual viewport, plus scroll-only updates and stale dismissal geometry.

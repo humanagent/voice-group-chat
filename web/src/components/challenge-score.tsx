@@ -1,26 +1,27 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { TrophyIcon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { TrophyIcon, XIcon } from "lucide-react"
 import { CHALLENGE_TARGET, type ChallengeRun, type ScoreEntry } from "@/lib/challenge"
-
-export function ChallengeMeter({ run }: { run: ChallengeRun | null }) {
-  const score = run?.score ?? 0
-  return <div className="challenge-meter">
-    <div><span>One prompt</span><output aria-label="Challenge score" aria-live="polite">{score}<span> / {CHALLENGE_TARGET}</span></output></div>
-    <progress value={score} max={CHALLENGE_TARGET} aria-label="Challenge progress" />
-  </div>
-}
+import { useKeyboardFocus } from "@/hooks/use-keyboard-focus"
+import { cycleDialogFocus } from "@/lib/dialog-focus"
 
 const endings = {
-  won: "You won!", quiet: "The conversation ended.", stopped: "Challenge stopped.",
+  won: "You won!", quiet: "Round finished", stopped: "Round stopped",
   timeout: "Time’s up.", failed: "An agent couldn’t finish.", running: "Challenge in progress…",
 }
 
-export function ChallengeResult({ run, online, published }: { run: ChallengeRun; online: boolean; published: (run: ChallengeRun) => void }) {
+export function ChallengeResult({ run, online, published, dismiss, playAgain }: { run: ChallengeRun; online: boolean; published: (run: ChallengeRun) => void; dismiss: () => void; playAgain: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const keyboardFocus = useKeyboardFocus<HTMLInputElement>()
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    const element = dialog.current!
+    element.showModal()
+    return () => element.close()
+  }, [])
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     if (saving || !online || run.submitted) return
@@ -34,19 +35,21 @@ export function ChallengeResult({ run, online, published }: { run: ChallengeRun;
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Couldn’t publish. Try again.") }
     finally { setSaving(false) }
   }
-  return <section className={`challenge-result ${run.status === "won" ? "challenge-won" : ""}`} aria-labelledby="challenge-result-title">
-    {run.status === "won" && <TrophyIcon size={32} aria-hidden="true" />}
+  return <dialog ref={dialog} className={`challenge-result ${run.status === "won" ? "challenge-won" : ""}`} aria-labelledby="challenge-result-title" aria-describedby="challenge-final-score" onCancel={(event) => { event.preventDefault(); dismiss() }} onKeyDown={cycleDialogFocus}>
+    <button className="icon-button result-close" aria-label="Back to the room" onClick={dismiss} autoFocus><XIcon size={18} /></button>
+    <div className="result-trophy"><TrophyIcon size={32} strokeWidth={1.5} aria-hidden="true" /></div>
     <h2 id="challenge-result-title">{endings[run.status]}</h2>
-    <p>{run.score} {run.score === 1 ? "reply" : "replies"} from one prompt.{run.score < CHALLENGE_TARGET ? " Reach 20 to win." : ""}</p>
+    <p id="challenge-final-score" className="result-score" aria-label={`${run.score} of ${CHALLENGE_TARGET} replies`}>{run.score}<span>/{CHALLENGE_TARGET}</span></p>
     {run.submitted ? <p role="status">Result published.</p> :
       <form onSubmit={submit} aria-label="Publish result">
         <label htmlFor="challenger-name">Your name</label>
-        <input id="challenger-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={24} autoComplete="nickname" required disabled={saving} aria-describedby="score-privacy" />
-        <p id="score-privacy">Only your name and score will be public. Your prompt and conversation won’t be published.</p>
+        <input {...keyboardFocus} id="challenger-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={24} autoComplete="nickname" required disabled={saving} aria-describedby="score-privacy" />
+        <p id="score-privacy">Name and score are public.</p>
         {error && <p role="alert">{error}</p>}
         <button className="confirm-button" disabled={saving || !online || !name.trim()}>{saving ? "Publishing…" : "Publish score"}</button>
       </form>}
-  </section>
+    <button className="result-again" onClick={playAgain} disabled={saving || !online}>{run.submitted ? "Play again" : "Skip & play again"}</button>
+  </dialog>
 }
 
 export function Scoreboard() {

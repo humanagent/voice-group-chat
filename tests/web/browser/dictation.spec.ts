@@ -1,8 +1,9 @@
 import { expect, test, type Page, type WebSocketRoute } from "../../../web/test-support/browser"
 
-async function recording(page: Page, options: { finalize?: boolean; tokenFailure?: boolean } = {}) {
+async function recording(page: Page, options: { finalize?: boolean; tokenFailure?: boolean; challenge?: boolean } = {}) {
   let socket: WebSocketRoute | undefined
   let commits = 0
+  let tokens = 0
   const sent: string[] = []
   const telemetry: unknown[] = []
   await page.addInitScript(() => {
@@ -17,7 +18,16 @@ async function recording(page: Page, options: { finalize?: boolean; tokenFailure
   })
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "test-room", complete: true } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
-  await page.route("**/api/scribe", (route) => route.fulfill({ status: options.tokenFailure ? 503 : 200, json: { token: "test-only-token" } }))
+  await page.route("**/api/scribe", (route) => { tokens++; return route.fulfill({ status: options.tokenFailure ? 503 : 200, json: { token: "test-only-token" } }) })
+  if (options.challenge) {
+    let run: null | { id: string; score: number; target: number; status: string; submitted: boolean } = null
+    await page.route("**/api/challenge", (route) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { run } })
+      sent.push(route.request().postDataJSON().message)
+      run = { id: "voice-round", score: 2, target: 20, status: "quiet", submitted: false }
+      return route.fulfill({ contentType: "text/event-stream", body: [{ type: "challenge", run }, { type: "said", agent: "Anna", text: "First reply", audio: null }, { type: "said", agent: "Pepe", text: "Second reply", audio: null }, { type: "done" }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") })
+    })
+  }
   await page.route("**/api/speak?*", (route) => route.fulfill({ status: 503, json: { error: "Mocked" } }))
   await page.route("**/api/say", (route) => {
     sent.push(route.request().postDataJSON().message)
@@ -42,10 +52,10 @@ async function recording(page: Page, options: { finalize?: boolean; tokenFailure
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
   await page.getByRole("button", { name: "Close performance diagnostics" }).click()
   return {
-    sent, telemetry, commits: () => commits,
+    sent, telemetry, commits: () => commits, tokens: () => tokens,
     event: (type: string, text: string) => socket!.send(JSON.stringify({ message_type: type, text })),
     begin: async () => {
-      await page.getByRole("button", { name: "Record a voice message" }).click()
+      await page.getByRole("button", { name: options.challenge ? "Start challenge" : "Record a voice message" }).click()
       if (!options.tokenFailure) await expect(page.getByRole("button", { name: "Send recording", exact: true })).toBeEnabled()
     },
   }
@@ -129,4 +139,83 @@ test("token failures leave typing available and do not allocate a microphone", a
   await expect(page.getByRole("textbox", { name: "Message the room" })).toBeEditable()
   expect((await microphoneState(page)).streams).toBe(0)
   expect(session.sent).toEqual([])
+})
+
+test("Challenge uses the existing composer microphone and only the result opens a modal", async ({ page }) => {
+  const session = await recording(page, { challenge: true })
+  expect(session.tokens()).toBe(0)
+  await expect(page.getByRole("button", { name: "Global scoreboard" })).toBeVisible()
+  await session.begin()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.locator(".composer.is-recording")).toHaveCount(1)
+  await expect(page.locator(".stage-wrap")).toBeInViewport({ ratio: 1 })
+  await expect(page.getByRole("button", { name: "Start challenge" })).toBeDisabled()
+  expect(session.tokens()).toBe(1)
+  session.event("partial_transcript", "Hola, estas son")
+  await expect(page.getByRole("region", { name: "Live transcription" })).toHaveText("Hola, estas son")
+  await page.getByRole("button", { name: "Send recording", exact: true }).click()
+  await expect.poll(() => session.sent).toEqual(["Hola, estas son las últimas palabras."])
+  expect(session.commits()).toBe(1)
+  await expect(page.getByRole("dialog", { name: "Round finished" })).toBeVisible()
+  await expect(page.getByLabel("2 of 20 replies")).toHaveText("2/20")
+  await expect(page.getByLabel("Your name")).toBeVisible()
+  await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["ended"] })
+  await page.getByRole("button", { name: "Back to the room", exact: true }).click()
+  await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))
+  await page.getByRole("button", { name: "Global scoreboard" }).click()
+  await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
+})
+
+test("discarding a challenge recording releases the same microphone and keeps typing available", async ({ page }) => {
+  const session = await recording(page, { challenge: true })
+  await session.begin()
+  await page.getByRole("button", { name: "Discard recording" }).click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["ended"] })
+  expect(session.sent).toEqual([])
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveAttribute("placeholder", "Your one prompt…")
+  await page.getByRole("button", { name: "Room mode", exact: true }).click()
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveAttribute("placeholder", "Type a message…")
+})
+
+test("failed challenge capture preserves words when switching to text", async ({ page }) => {
+  const session = await recording(page, { challenge: true })
+  await session.begin()
+  session.event("partial_transcript", "Keep my challenge prompt")
+  await expect(page.getByRole("region", { name: "Live transcription" })).toHaveText("Keep my challenge prompt")
+  session.event("quota_exceeded", "")
+  await expect(page.getByRole("region", { name: "The room", exact: true }).getByRole("alert")).toBeVisible()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveValue("Keep my challenge prompt")
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveAttribute("placeholder", "Your one prompt…")
+  expect(session.sent).toEqual([])
+  await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["ended"] })
+})
+
+test("leaderboard Play activates the same recorder without clearing the room or draft", async ({ page }) => {
+  const session = await recording(page, { challenge: true })
+  await page.getByRole("textbox", { name: "Message the room" }).fill("Keep this draft")
+  await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))
+  await page.getByRole("button", { name: "Global scoreboard" }).click()
+  await page.getByRole("button", { name: "Play", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Send recording", exact: true })).toBeEnabled()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  expect(session.tokens()).toBe(1)
+  await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["live"] })
+  await page.getByRole("button", { name: "Discard recording" }).click()
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveValue("Keep this draft")
+  expect(session.sent).toEqual([])
+})
+
+test("an overlong voice challenge is recovered for editing, never sent silently", async ({ page }) => {
+  const session = await recording(page, { challenge: true, finalize: false })
+  await session.begin()
+  await page.getByRole("button", { name: "Send recording", exact: true }).click()
+  await expect.poll(session.commits).toBe(1)
+  const text = "Long prompt ".repeat(200)
+  session.event("committed_transcript", text)
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveValue(text.trim())
+  await expect(page.getByRole("region", { name: "The room", exact: true }).getByRole("alert")).toContainText("too long")
+  expect(session.sent).toEqual([])
+  await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["ended"] })
 })

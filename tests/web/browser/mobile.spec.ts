@@ -24,6 +24,68 @@ async function showLatest(page: Page) {
   await expect(page.getByRole("button", { name: "Jump to latest messages" })).toHaveCount(0)
 }
 
+for (const score of [2, 20]) {
+  test(`centered trophy result ${score}/20`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.route("**/api/challenge", (route) => route.fulfill({ json: { run: { id: "saved-round", score, target: 20, status: score === 20 ? "won" : "quiet", submitted: false } } }))
+    await openRoom(page)
+    const modal = page.getByRole("dialog")
+    await expect(modal).toBeVisible()
+    await expect(page.getByLabel(`${score} of 20 replies`)).toHaveText(`${score}/20`)
+    const rect = (await modal.boundingBox())!
+    expect(rect.x + rect.width / 2).toBeCloseTo(195, 0)
+    expect(rect.y + rect.height / 2).toBeCloseTo(422, 0)
+    await expect(page.getByRole("progressbar")).toHaveCount(0)
+    if (info.project.name === "visual") await expect(page).toHaveScreenshot(`challenge-result-${score}.png`)
+    else await page.screenshot({ path: info.outputPath(`challenge-result-${score}.png`) })
+  })
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 440, height: 956 }]) {
+test(`installed PWA consumes the safe area once at ${viewport.width}x${viewport.height}`, async ({ page }, info) => {
+  await page.setViewportSize(viewport)
+  const restingVisualHeight = viewport.height - 96
+  await page.addInitScript((height) => {
+    Object.defineProperty(navigator, "standalone", { get: () => true })
+    // Reproduce Safari's short visual viewport even before focus.
+    Object.defineProperty(visualViewport!, "height", { configurable: true, value: height })
+  }, restingVisualHeight)
+  await openRoom(page)
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--room-safe-top", "62px")
+    document.documentElement.style.setProperty("--room-safe-bottom", "34px")
+  })
+  const geometry = () => page.evaluate(() => {
+    const shell = document.querySelector(".room-shell")!.getBoundingClientRect()
+    const footer = document.querySelector(".composer-wrap")!.getBoundingClientRect()
+    const input = document.querySelector("form.composer")!.getBoundingClientRect()
+    return { bottom: footer.bottom, gap: shell.bottom - footer.bottom, padding: footer.bottom - input.bottom }
+  })
+  await expect(page.locator("html")).toHaveAttribute("data-room-standalone", "true")
+  await expect.poll(geometry).toEqual({ bottom: viewport.height, gap: 0, padding: 34 })
+  if (info.project.name === "visual") await expect(page).toHaveScreenshot(`pwa-safe-area-${viewport.width}.png`)
+  const input = page.getByRole("textbox", { name: "Message the room" })
+  await input.focus()
+  // Focus isn't a resize: no immediate 96px jump toward the top.
+  await expect.poll(geometry).toEqual({ bottom: viewport.height, gap: 0, padding: 34 })
+  await page.evaluate(() => {
+    Object.defineProperty(visualViewport!, "height", { configurable: true, value: 360 })
+    visualViewport!.dispatchEvent(new Event("resize"))
+  })
+  await expect.poll(geometry).toEqual({ bottom: 360, gap: 0, padding: 8 })
+  // A mocked visual viewport does not render an OS keyboard: capture only
+  // the app's visible area, not the empty space reserved for that keyboard.
+  if (info.project.name === "visual") await expect(page).toHaveScreenshot(`pwa-keyboard-${viewport.width}.png`, { clip: { x: 0, y: 0, width: viewport.width, height: 360 } })
+  await input.blur()
+  await page.evaluate((height) => {
+    Object.defineProperty(visualViewport!, "height", { configurable: true, value: height })
+    visualViewport!.dispatchEvent(new Event("resize"))
+  }, restingVisualHeight)
+  await expect.poll(geometry).toEqual({ bottom: viewport.height, gap: 0, padding: 34 })
+  await expect(page.getByRole("button", { name: "Install the room" })).toHaveCount(0)
+})
+}
+
 for (const viewport of [
   { width: 320, height: 568 }, { width: 390, height: 844 },
   { width: 430, height: 932 }, { width: 844, height: 390 },
@@ -95,9 +157,16 @@ test("iOS installation instructions fit without shifting the composer offscreen"
 })
 
 test("challenge scoreboard and play share an edge-to-edge mobile shell", async ({ page }, info) => {
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
+  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   await page.setViewportSize({ width: 390, height: 844 })
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.route("**/api/challenge", (route) => route.fulfill({ json: { run: null } }))
+  // Hold token acquisition to snapshot the existing composer recording without
+  // opening a microphone or connecting to a paid provider.
+  await page.route("**/api/scribe", () => {})
   await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [
     { id: "first", rank: 1, name: "Alex", score: 20, won: true },
     { id: "second", rank: 2, name: "Sam", score: 14, won: false },
@@ -107,11 +176,16 @@ test("challenge scoreboard and play share an edge-to-edge mobile shell", async (
   await expect(play).toBeEnabled()
   await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("Sam")
   await expect(play).toBeInViewport({ ratio: 1 })
-  await expect(page.getByRole("link", { name: "Back to the room" })).toBeInViewport({ ratio: 1 })
+  await expect(page.getByRole("button", { name: "Back to the room" })).toBeInViewport({ ratio: 1 })
   if (info.project.name === "visual") await expect(page).toHaveScreenshot("challenge-scoreboard.png")
   else await page.screenshot({ path: info.outputPath("challenge-scoreboard.png") })
   await play.click()
-  await expect(page.getByRole("textbox", { name: "Message the room" })).toBeVisible()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.getByRole("region", { name: "Live transcription" })).toHaveText("Connecting microphone…")
+  await expect(page.locator(".stage-wrap")).toBeInViewport({ ratio: 1 })
   if (info.project.name === "visual") await expect(page).toHaveScreenshot("challenge-play.png")
   else await page.screenshot({ path: info.outputPath("challenge-play.png") })
+  await page.getByRole("button", { name: "Discard recording" }).click()
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toBeVisible()
+  expect(errors).toEqual([])
 })

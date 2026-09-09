@@ -4,6 +4,8 @@ import { challengeBody, challengeFailure, owner, privateHeaders } from "@/lib/ch
 import { runChallenge } from "@/lib/challenge-runner"
 import { ChallengeError, challengeStore } from "@/lib/challenge-store"
 import type { RoomEvent } from "@/lib/room-stream"
+import { acquireRoom } from "@/lib/room-round"
+import { ensureRoom } from "@/lib/room-session"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -17,6 +19,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let release: (() => void) | null = null
   try {
     const body = await challengeBody(request)
     if (Object.keys(body).some((key) => key !== "message") || typeof body.message !== "string" || !body.message.trim() || body.message.length > CHALLENGE_PROMPT_LIMIT) {
@@ -24,6 +27,8 @@ export async function POST(request: Request) {
     }
     const group = agents()
     if (group.length < 2) throw new ChallengeError(503, "At least two agents must be configured.")
+    release = acquireRoom()
+    if (!release) throw new ChallengeError(409, "The room is responding. Start counting when it finishes.")
     const secure = new URL(request.url).protocol === "https:" || request.headers.get("x-forwarded-proto") === "https"
     const who = (await owner(true, secure))!
     const store = challengeStore()
@@ -43,18 +48,19 @@ export async function POST(request: Request) {
           if (!closed) { try { controller.enqueue(encoder.encode(": heartbeat\n\n")) } catch { closed = true; cancel.abort() } }
         }, 15_000)
         emit({ type: "challenge", run })
-        void runChallenge({ run, group, message: body.message as string, store, signal, emit }).catch(() => {
-          // A storage/cleanup failure must not create an unhandled rejection or
+        void ensureRoom(group, signal).then(() => runChallenge({ run, group, message: body.message as string, store, signal, emit })).catch(() => {
+          // An initialization/storage failure must not create an unhandled rejection or
           // invent a successful result. The client can recover persisted state.
-          try { store.finish(run.id, "failed") } catch { /* Storage may be unavailable. */ }
-          console.error(JSON.stringify({ event: "challenge.storage_error", version: 1 }))
+          try { emit({ type: "challenge", run: store.finish(run.id, signal.aborted ? "stopped" : "failed") }); emit({ type: "done" }) } catch { /* Storage may be unavailable. */ }
+          console.error(JSON.stringify({ event: "challenge.run_error", version: 1 }))
         }).finally(() => {
           clearInterval(heartbeat)
+          release?.()
           if (!closed) { closed = true; controller.close() }
         })
       },
       cancel() { closed = true; cancel.abort(); store.finish(run.id, "stopped") },
     })
     return new Response(stream, { headers: { ...privateHeaders, "Content-Type": "text/event-stream", "X-Accel-Buffering": "no", "Cache-Control": "no-cache, no-store, no-transform" } })
-  } catch (error) { return challengeFailure(error) }
+  } catch (error) { release?.(); return challengeFailure(error) }
 }

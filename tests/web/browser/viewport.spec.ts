@@ -1,5 +1,38 @@
 import { expect, test } from "../../../web/test-support/browser"
 
+test("first input tap requests focus without native centering; swipes and selection stay native", async ({ page }) => {
+  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
+  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
+  await page.goto("/")
+  await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
+  const results = await page.locator("textarea").evaluate((input) => {
+    const options: (FocusOptions | undefined)[] = []
+    const nativeFocus = input.focus.bind(input)
+    input.focus = (option) => { options.push(option); nativeFocus(option) }
+    const touch = (type: string, x = 20, count = 1) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      const touches = Array.from({ length: count }, (_, identifier) => ({ clientX: x, clientY: 20, identifier }))
+      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: touches } })
+      input.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    input.blur()
+    touch("touchstart")
+    const first = touch("touchend")
+    const focused = document.activeElement === input
+    touch("touchstart")
+    const selection = touch("touchend")
+    input.blur()
+    touch("touchstart")
+    touch("touchmove", 80)
+    const swipe = touch("touchend", 80)
+    touch("touchstart", 20, 2)
+    const pinch = touch("touchend", 20, 2)
+    return { first, focused, options, selection, swipe, pinch }
+  })
+  expect(results).toEqual({ first: true, focused: true, options: [{ preventScroll: true }], selection: false, swipe: false, pinch: false })
+})
+
 test("iOS keyboard pan keeps the room above the keyboard and restores full height", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
@@ -65,7 +98,7 @@ test("iOS keyboard pan keeps the room above the keyboard and restores full heigh
   // to a document-scrolling page or leaves the keyboard viewport lock behind.
   await page.route("**/api/challenge", (route) => route.fulfill({ json: { run: null } }))
   await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))
-  await page.getByRole("link", { name: "Play challenge" }).click()
+  await page.getByRole("button", { name: "Global scoreboard" }).click()
   await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
   await expect(page.locator("html")).toHaveAttribute("data-room-viewport", "true")
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeInViewport({ ratio: 1 })

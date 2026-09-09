@@ -3,6 +3,8 @@ import { GET, POST } from "@/app/api/challenge/route"
 import { GET as scores, POST as publish } from "@/app/api/challenge/scoreboard/route"
 import { GET as publicHistory } from "@/app/api/history/route"
 import { POST as publicSay } from "@/app/api/say/route"
+import { DELETE as clearRoom } from "@/app/api/room/route"
+import { ensureRoom } from "@/lib/room-session"
 import { ChallengeStore, challengeOwner, challengeStore } from "@/lib/challenge-store"
 import { challengeBody, owner } from "@/lib/challenge-http"
 import { roomEvents } from "@/lib/room-stream"
@@ -11,7 +13,7 @@ const cookie = vi.hoisted(() => ({ value: "a".repeat(64), set: vi.fn() }))
 vi.mock("../../web/node_modules/next/headers.js", () => ({ cookies: async () => ({ get: () => cookie.value ? { value: cookie.value } : undefined, set: cookie.set }) }))
 vi.mock("@/lib/challenge-store", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/challenge-store")>(), challengeStore: vi.fn() }))
 vi.mock("@/lib/agents", () => ({ agents: () => ["Anna", "Jordan", "Pepe"].map((name) => ({ name, url: "http://localhost:9", key: "test" })) }))
-vi.mock("@/lib/personas", () => ({ cast: () => [], briefing: () => "" }))
+vi.mock("@/lib/room-session", () => ({ ensureRoom: vi.fn(async () => {}) }))
 vi.mock("@/lib/group", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/group")>(),
   openChat: async () => {}, forget: async () => 3,
@@ -89,9 +91,22 @@ describe("challenge HTTP boundary", () => {
     expect((await publish(request({ runId: run.id, name: "Ada" }))).status).toBe(409)
     expect(db.scoreboard()).toEqual([])
   })
-  it("public room endpoints cannot read or inject into a scored session", async () => {
+  it("public room endpoints reject arbitrary sessions and forged speakers", async () => {
     expect((await publicSay(request({ chat: "challenge-private", message: "cheat" }))).status).toBe(400)
     expect((await publicSay(request({ chat: "room", message: "cheat", speaker: "Anna" }))).status).toBe(400)
     expect((await publicHistory(new Request("https://room.example/api/history?chat=challenge-private"))).status).toBe(404)
+  })
+  it("holds the shared room against overlapping prompts and resets", async () => {
+    let release!: () => void
+    vi.mocked(ensureRoom).mockImplementationOnce(() => new Promise<void>((resolve) => { release = resolve }))
+    const first = await POST(request({ message: "Count this round" }))
+    expect((await POST(request({ message: "Competing round" }))).status).toBe(409)
+    expect((await publicSay(request({ chat: "room", message: "Interruption" }))).status).toBe(409)
+    expect((await clearRoom()).status).toBe(409)
+    release()
+    await first.text()
+    const ordinary = await publicSay(request({ chat: "room", message: "Continue the conversation" }))
+    expect(ordinary.status).toBe(200)
+    expect(await ordinary.text()).toContain("A private reply")
   })
 })

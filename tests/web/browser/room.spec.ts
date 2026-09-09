@@ -107,7 +107,7 @@ test("incoming replies respect scroll position and room navigation does not clea
   let cleared = false
   page.on("request", (request) => { if (request.method() === "DELETE") cleared = true })
   await expect(page.getByRole("button", { name: "Clear the room", exact: true })).toHaveCount(0)
-  await page.getByRole("link", { name: "Room mode", exact: true }).click()
+  await page.getByRole("button", { name: "Room mode", exact: true }).click()
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
   expect(cleared).toBe(false)
 })

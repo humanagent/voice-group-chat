@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useEffectEvent, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react"
 import { CommitStrategy, Scribe } from "@elevenlabs/client"
 import { Dictation, idleDictation, type DictationState } from "@/lib/dictation"
 import { record, sampleFrames } from "@/lib/telemetry"
@@ -12,9 +12,18 @@ export function useDictation({ completed, failed, statusChanged }: {
 }) {
   const [state, setState] = useState(idleDictation)
   const controller = useRef<Dictation | null>(null)
+  const lastRenderMetric = useRef(-Infinity)
   const onCompleted = useEffectEvent(completed)
   const onFailed = useEffectEvent(failed)
   const onStatus = useEffectEvent(statusChanged)
+  // Normal and counted prompts use the same recorder and diagnostics contract.
+  useLayoutEffect(() => {
+    const now = performance.now()
+    if (state.receivedAt && now - lastRenderMetric.current >= 1000) {
+      record("dictation_render", now - state.receivedAt, state.id)
+      lastRenderMetric.current = now
+    }
+  }, [state.text, state.receivedAt, state.id])
 
   useEffect(() => {
     let mounted = true

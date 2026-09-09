@@ -1,9 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import Link from "next/link"
-import { ArrowDownToLineIcon, MessagesSquareIcon, RefreshCwIcon, TrophyIcon, WifiOffIcon, XIcon } from "lucide-react"
-import { ChallengeMeter, ChallengeResult, Scoreboard } from "@/components/challenge-score"
+import { ArrowDownToLineIcon, ListOrderedIcon, MessagesSquareIcon, RefreshCwIcon, TrophyIcon, WifiOffIcon, XIcon } from "lucide-react"
+import { ChallengeResult, Scoreboard } from "@/components/challenge-score"
 import { CHALLENGE_PROMPT_LIMIT, type ChallengeRun } from "@/lib/challenge"
 import { ChatMessage, type Line } from "@/components/chat-message"
 import { Composer, type ComposerHandle } from "@/components/composer"
@@ -16,9 +15,9 @@ import { roomEvents } from "@/lib/room-stream"
 import { record, sampleFrames } from "@/lib/telemetry"
 import type { DictationState } from "@/lib/dictation"
 
-type Pending = { id: string; text: string }
+type Pending = { id: string; text: string; counted: boolean }
 
-export function Room({ names, speech, challenge = false }: { names: string[]; speech: boolean; challenge?: boolean }) {
+export function Room({ names, speech, initialScoreboard = false }: { names: string[]; speech: boolean; initialScoreboard?: boolean }) {
   useRoomViewport()
   const [chat, setChat] = useState<string | null>(null)
   const [opening, setOpening] = useState(names.length > 0)
@@ -30,8 +29,9 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
   const [error, setError] = useState<string | null>(null)
   const [installHelp, setInstallHelp] = useState(false)
   const [challengeRun, setChallengeRun] = useState<ChallengeRun | null>(null)
-  const [challengeView, setChallengeView] = useState<"scoreboard" | "play">("scoreboard")
-  const scoreboard = challenge && challengeView === "scoreboard"
+  const [scoreboard, setScoreboard] = useState(initialScoreboard)
+  const [counting, setCounting] = useState(false)
+  const [dismissedRun, setDismissedRun] = useState<string | null>(null)
   const pwa = usePwa()
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const waiting = useRef<Pending[]>([])
@@ -77,13 +77,6 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
     opener.current = controller
     const start = performance.now()
     try {
-      if (challenge) {
-        const response = await fetch("/api/challenge", { signal: controller.signal, cache: "no-store" })
-        if (!response.ok) throw new Error("The challenge isn’t available yet. Try connecting again.")
-        const data = await response.json()
-        if (!controller.signal.aborted) { setChallengeRun(data.run); setChat("challenge") }
-        return
-      }
       const response = await fetch("/api/room", { signal: controller.signal })
       if (!response.ok) throw new Error("The room isn’t available yet. Try connecting again.")
       const data = await response.json()
@@ -91,6 +84,18 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
       const history = await fetch(`/api/history?chat=${encodeURIComponent(data.chat)}`, { signal: controller.signal })
       if (!history.ok) throw new Error("The conversation couldn’t load. Try connecting again.")
       const previous = await history.json()
+      // Restore the counter independently of the shared conversation. A score
+      // storage outage must not prevent ordinary chat from opening.
+      try {
+        const saved = await fetch("/api/challenge", { signal: controller.signal, cache: "no-store" })
+        if (saved.ok) {
+          const data = await saved.json()
+          if (!controller.signal.aborted) {
+            setChallengeRun(data.run)
+            if (data.run?.submitted) setDismissedRun(data.run.id)
+          }
+        }
+      } catch { /* Ordinary chat remains available without score storage. */ }
       if (controller.signal.aborted) return
       setLines((previous.lines ?? []).map((line: Pick<Line, "speaker" | "text" | "spoken">, i: number) => ({ ...line, id: `history-${i}` })))
       setChat(data.chat)
@@ -98,7 +103,7 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
     } catch (failure) {
       if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : "Couldn’t connect to the room."); record("room_error", 1) }
     } finally { if (!controller.signal.aborted) setOpening(false) }
-  }, [challenge])
+  }, [])
 
   useEffect(() => {
     // Opening synchronizes with the server; state changes happen after network I/O.
@@ -110,7 +115,7 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
   // A refresh can arrive before a disconnected run finishes cancelling. Recover
   // its persisted result without re-sending the prompt or minting another run.
   useEffect(() => {
-    if (!challenge || busy || challengeRun?.status !== "running") return
+    if (busy || challengeRun?.status !== "running") return
     const controller = new AbortController()
     const timer = setInterval(() => {
       void fetch("/api/challenge", { signal: controller.signal, cache: "no-store" }).then(async (response) => {
@@ -118,7 +123,7 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
       }).catch(() => {})
     }, 2000)
     return () => { clearInterval(timer); controller.abort() }
-  }, [challenge, busy, challengeRun?.status])
+  }, [busy, challengeRun?.status])
 
   const hush = useCallback(() => {
     voice.current?.stop()
@@ -139,15 +144,17 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
     round.current = controller
     const start = performance.now()
     let first = true
+    let accepted = false
     delivery(item.id, "sending")
     try {
-      const response = await fetch(challenge ? "/api/challenge" : "/api/say", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(challenge ? { message: item.text } : { chat, message: item.text }), signal: controller.signal })
-      if (challenge && !response.ok) {
+      const response = await fetch(item.counted ? "/api/challenge" : "/api/say", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item.counted ? { message: item.text } : { chat, message: item.text }), signal: controller.signal })
+      if (!response.ok) {
         const data = await response.json()
         delivery(item.id, "not-sent")
-        setError(data.error || "The challenge couldn’t start. Try again.")
+        setError(data.error || "Your message couldn’t send. Try again.")
         return false
       }
+      accepted = true
       for await (const event of roomEvents(response)) {
         delivery(item.id, "sent")
         if (event.type === "challenge") setChallengeRun(event.run)
@@ -172,7 +179,8 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
       return false
     } finally {
       if (round.current === controller) round.current = null
-      if (challenge) {
+      if (item.counted && accepted) {
+        setCounting(false)
         try {
           const response = await fetch("/api/challenge", { cache: "no-store" })
           if (response.ok) { const data = await response.json(); setChallengeRun(data.run) }
@@ -198,10 +206,10 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
     } finally { draining.current = false; setBusy(false) }
   }
 
-  function submit(text: string) {
+  function submit(text: string, counted = counting) {
     if (!chat || opening || !navigator.onLine || !text.trim()) return false
-    if (challenge && (draining.current || challengeRun || text.length > CHALLENGE_PROMPT_LIMIT)) return false
-    const item = { id: crypto.randomUUID(), text: text.trim() }
+    if (challengeRun?.status === "running" || (counted && (draining.current || text.length > CHALLENGE_PROMPT_LIMIT))) return false
+    const item = { id: crypto.randomUUID(), text: text.trim(), counted }
     setLines((current) => [...current, { ...item, speaker: "you", spoken: false, animate: true, delivery: draining.current ? "queued" : "sending" }])
     setError(null)
     waiting.current.push(item)
@@ -215,70 +223,70 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
   const thinking = names.filter((name) => phase[name] === "thinking")
   const status = !pwa.online ? "Offline" : opening ? "Connecting…" : !chat ? "Disconnected"
     : recording === "connecting" ? "Connecting microphone…" : recording === "finishing" ? "Finishing transcription…"
-    : listening ? "Recording…" : busy ? "Responding…" : null
+    : listening ? "Recording…" : busy ? "Responding…" : counting ? "Next prompt counts" : null
 
-  function playAgain() {
-    hush()
+  function startChallenge() {
+    if (opening || !chat || busy || listening || !pwa.online || challengeRun?.status === "running") return
+    voice.current?.stop()
     setChallengeRun(null)
-    setLines([])
+    setDismissedRun(null)
+    setCounting(true)
     setError(null)
-    setChallengeView("play")
+    setScoreboard(false)
+    if (!composer.current?.startRecording()) setError("Voice is unavailable. You can type your prompt.")
   }
 
   function showScoreboard() {
     // Never navigate/unmount a live attempt to inspect the ranking.
-    setChallengeView("scoreboard")
+    setScoreboard(true)
+  }
+
+  function showRoom() {
+    setScoreboard(false)
+    if (!busy) setCounting(false)
+    if (challengeRun?.status !== "running") setDismissedRun(challengeRun?.id ?? null)
   }
 
   const savedAttempt = challengeRun && !challengeRun.submitted
-  const playLabel = savedAttempt ? challengeRun.status === "running" ? "Resume challenge" : "View result" : "Play"
 
   return (
     <main className="room-page">
-      <section className="room-shell" aria-label="The room" aria-busy={opening}>
+      <section className="room-shell" data-scoreboard={scoreboard} aria-label="The room" aria-busy={opening}>
         <header className="room-header">
-          <div><h1>{challenge ? "Challenge" : "The room"}</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
+          <div><h1>{scoreboard ? "Challenge" : "The room"}</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
           <nav className="room-actions" aria-label="Room modes">
-            <Link className="icon-button" href="/" aria-label={challenge ? "Back to the room" : "Room mode"} aria-current={!challenge ? "page" : undefined} title="Room"><MessagesSquareIcon size={18} /></Link>
-            {challenge ? (
-              <button className="icon-button" onClick={showScoreboard} disabled={busy || listening || challengeRun?.status === "running"} aria-label="Global scoreboard" aria-current="page" title="Challenge"><TrophyIcon size={18} /></button>
-            ) : (
-              <Link className="icon-button" href="/challenge" aria-label="Play challenge" title="Challenge"><TrophyIcon size={18} /></Link>
-            )}
+            <button className="icon-button" onClick={showRoom} disabled={listening} aria-label={scoreboard ? "Back to the room" : "Room mode"} aria-current={!scoreboard ? "page" : undefined} title="Room"><MessagesSquareIcon size={18} /></button>
+            <button className="icon-button" onClick={startChallenge} disabled={opening || !chat || busy || listening || !pwa.online || challengeRun?.status === "running"} aria-label="Start challenge" title="Challenge"><TrophyIcon size={18} /></button>
+            <button className="icon-button" onClick={showScoreboard} disabled={listening} aria-label="Global scoreboard" aria-current={scoreboard ? "page" : undefined} title="Leaderboard"><ListOrderedIcon size={18} /></button>
             {!pwa.installed && (pwa.canInstall || pwa.ios) && <button className="icon-button" onClick={() => pwa.canInstall ? void pwa.install() : setInstallHelp(true)} aria-label="Install the room" title="Install the room"><ArrowDownToLineIcon size={18} /></button>}
           </nav>
         </header>
-        {challenge && !scoreboard && <ChallengeMeter run={challengeRun} />}
-        {!scoreboard && <div className="stage-wrap"><Stage names={names} phase={phase} level={level} /></div>}
-        {scoreboard ? <div className="challenge-lobby"><Scoreboard /></div> : <Conversation className="room-conversation" initial="instant" resize="instant" contextRef={scroller as React.Ref<never>} aria-label="Conversation" aria-live="polite" aria-relevant="additions">
+        <div className="stage-wrap"><Stage names={names} phase={phase} level={level} /></div>
+        {scoreboard && <div className="challenge-lobby"><Scoreboard /></div>}
+        <Conversation className="room-conversation" initial="instant" resize="instant" contextRef={scroller as React.Ref<never>} aria-label="Conversation" aria-live="polite" aria-relevant="additions">
           <ConversationContent className="transcript-content">
             {!names.length && <p className="room-empty">No agents configured.</p>}
-            {challenge && !challengeRun && !lines.length && <div className="challenge-intro"><h2>20 replies. One prompt.</h2><p>Get the agents talking. Each reply adds one point; silence doesn’t count. Reach 20 to win.</p><p>The round ends at 20 replies, when everyone goes quiet, or after 4 minutes. You can stop sooner.</p></div>}
             {lines.map((line, i) => <ChatMessage key={line.id} line={line} live={i === reading} where={where} restore={restore} />)}
             {thinking.length > 0 && <div className="typing-indicator" role="status"><span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>{thinking.join(" & ")} {thinking.length === 1 ? "is" : "are"} thinking</div>}
-            {challenge && challengeRun && challengeRun.status !== "running" && <ChallengeResult key={challengeRun.id} run={challengeRun} online={pwa.online} published={setChallengeRun} />}
           </ConversationContent>
           <ConversationScrollButton />
-        </Conversation>}
+        </Conversation>
         <div className="room-notices">
-        {challenge && !busy && challengeRun?.status === "running" && <div className="room-notice" role="status"><span>Your previous attempt is finishing. Its saved result will appear here.</span></div>}
+        {!busy && challengeRun?.status === "running" && <div className="room-notice" role="status"><span>Your previous attempt is finishing. Its saved result will appear here.</span></div>}
         {error && <div className="room-notice" role="alert"><span>{error}</span>{!chat && <button onClick={() => { setOpening(true); setError(null); void open() }} disabled={opening || !pwa.online}><RefreshCwIcon size={14} /> Reconnect</button>}<button className="notice-dismiss" onClick={() => setError(null)} aria-label="Dismiss notification"><XIcon size={14} /></button></div>}
         {!pwa.online && <div className="room-notice"><WifiOffIcon size={14} /><span>You’re offline. You can keep writing; send when you’re back.</span></div>}
         {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || opening || !!talking || pwa.updating} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} />{pwa.updating ? "Updating…" : "Update"}</button></div>}
         {installHelp && <div className="room-notice" role="status"><span>In Safari, tap Share, then “Add to Home Screen”.</span><button onClick={() => setInstallHelp(false)} aria-label="Dismiss install instructions"><XIcon size={14} /></button></div>}
         </div>
-        {scoreboard ? (
+        {scoreboard && (
           <footer className="composer-wrap challenge-footer challenge-start">
-            <button className="confirm-button" disabled={opening || !chat || busy} onClick={() => savedAttempt ? setChallengeView("play") : playAgain()}>{playLabel}</button>
+            <button className="confirm-button" disabled={opening || !chat || busy || !pwa.online || challengeRun?.status === "running"} onClick={startChallenge}>Play</button>
+            {savedAttempt && challengeRun.status !== "running" && <button className="saved-result-button" onClick={() => { setDismissedRun(null); setScoreboard(false) }}>View result</button>}
           </footer>
-        ) : challenge && challengeRun && challengeRun.status !== "running" ? (
-          <footer className="composer-wrap challenge-footer">
-            <button className="confirm-button" disabled={busy} onClick={playAgain}>{challengeRun.submitted ? "Play again" : "Skip & play again"}</button>
-          </footer>
-        ) : (
-          <Composer ready={!!chat && !opening && (!challenge || (!busy && !challengeRun))} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={challenge ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={challenge ? "Your one prompt…" : undefined} />
         )}
+        <Composer ready={!!chat && !opening && challengeRun?.status !== "running" && (!counting || !busy)} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={counting ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={counting ? "Your one prompt…" : undefined} />
       </section>
+      {!scoreboard && !busy && !listening && challengeRun && challengeRun.status !== "running" && dismissedRun !== challengeRun.id && <ChallengeResult key={challengeRun.id} run={challengeRun} online={pwa.online} published={setChallengeRun} dismiss={() => setDismissedRun(challengeRun.id)} playAgain={startChallenge} />}
     </main>
   )
 }

@@ -133,77 +133,6 @@ export function audienceFor(agents: Agent[], speaker: string): Agent[] {
   return agents.filter((a) => a.name !== speaker)
 }
 
-export type Room = {
-  id: string
-  title: string | null
-  agents: string[]
-  messages: number
-  cost: number
-  lastActive: number
-}
-
-/**
- * Every room the group is holding, newest first.
- *
- * A room does not live in one place: each agent is its own gateway with its own
- * sessions, and a room is the SAME session id opened on all of them. So the
- * three lists are merged back into one row per room — which is what it is, one
- * conversation — with the messages and cost summed, since a turn in a room is a
- * turn on each of them.
- *
- * An agent that is not answering contributes nothing rather than failing the
- * list: a half-up group should still show you the rooms you can see.
- */
-export async function rooms(group: Agent[]): Promise<Room[]> {
-  const merged = new Map<string, Room>()
-
-  await Promise.all(
-    group.map(async (agent) => {
-      let found: {
-        id?: string
-        title?: string | null
-        message_count?: number
-        estimated_cost_usd?: number
-        last_active?: number
-      }[] = []
-      try {
-        const res = await fetch(`${agent.url}/api/sessions`, {
-          headers: { Authorization: `Bearer ${agent.key}` },
-          signal: AbortSignal.timeout(5_000),
-          cache: "no-store",
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        found = data.sessions ?? data.data ?? []
-      } catch {
-        return
-      }
-
-      for (const s of found) {
-        const id = String(s.id ?? "")
-        if (!id) continue
-        const room = merged.get(id) ?? {
-          id,
-          title: null,
-          agents: [],
-          messages: 0,
-          cost: 0,
-          lastActive: 0,
-        }
-        // Whichever agent has one. A rename writes to all three, but a gateway
-        // that was down for it should not blank the name for everyone.
-        room.title = room.title ?? (s.title?.trim() || null)
-        room.agents.push(agent.name)
-        room.messages += s.message_count ?? 0
-        room.cost += s.estimated_cost_usd ?? 0
-        room.lastActive = Math.max(room.lastActive, s.last_active ?? 0)
-        merged.set(id, room)
-      }
-    }),
-  )
-
-  return [...merged.values()].sort((a, b) => b.lastActive - a.lastActive)
-}
 
 /**
  * What was already said in a room, read from one agent's session.
@@ -273,39 +202,6 @@ export async function forget(group: Agent[], chat: string): Promise<number> {
         })
         // A room an agent never had is a room it no longer has.
         return res.ok || res.status === 404
-      } catch {
-        return false
-      }
-    }),
-  )
-  return results.filter(Boolean).length
-}
-
-/**
- * Rename a room, on every agent that holds it.
- *
- * The name is the session's own `title`, not a label this app keeps beside it:
- * a room lives on three gateways and nowhere else, so anything stored here
- * would be lost the moment somebody opened it from another client. Writing to
- * all three is what makes the name the room's rather than this browser's.
- *
- * Best effort per agent. One gateway being down should not stop the rename
- * everywhere else — the read side already tolerates them disagreeing.
- */
-export async function rename(group: Agent[], chat: string, title: string): Promise<number> {
-  const results = await Promise.all(
-    group.map(async (agent) => {
-      try {
-        const res = await fetch(`${agent.url}/api/sessions/${chat}`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${agent.key}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ title: title.trim() || null }),
-          signal: AbortSignal.timeout(10_000),
-        })
-        return res.ok
       } catch {
         return false
       }
