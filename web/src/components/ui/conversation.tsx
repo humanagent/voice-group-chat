@@ -78,7 +78,7 @@ export const ConversationScrollButton = ({
   const { isAtBottom, scrollToBottom } = useStickToBottomContext()
 
   const handleScrollToBottom = useCallback(() => {
-    scrollToBottom()
+    scrollToBottom({ animation: "instant" })
   }, [scrollToBottom])
 
   return (
@@ -92,6 +92,7 @@ export const ConversationScrollButton = ({
         size="icon"
         type="button"
         variant="outline"
+        aria-label="Jump to latest messages"
         {...props}
       >
         <ArrowDownIcon className="size-4" />
