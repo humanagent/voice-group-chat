@@ -163,7 +163,14 @@ html[data-room-viewport="true"] .room-page { position: absolute; top: var(--room
 /* Standalone has no retracting browser toolbar. WebKit's dynamic/percentage
    heights can exclude safe areas here, leaving an extra strip below the app.
    Keep the full surface; apply the home-indicator inset once, in the footer. */
-@media (display-mode: standalone) { html { --room-rest-height: 100vh; } }
+/* Both selectors, because the media query is true from the first paint while
+   the attribute arrives with hydration: the app must fit before any script. */
+@media (display-mode: standalone) {
+  html { --room-rest-height: 100vh; }
+  .room-page { padding: 0; }
+  .room-shell { width: 100%; border: 0; border-radius: 0; box-shadow: none; padding: var(--room-safe-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  .composer-wrap { padding-bottom: max(8px, calc(var(--room-safe-bottom) - var(--room-keyboard-inset, 0px))); }
+}
 html[data-room-standalone="true"] { --room-rest-height: 100vh; }
 html[data-room-standalone="true"] .room-page { padding: 0; }
 html[data-room-standalone="true"] .room-shell { width: 100%; border: 0; border-radius: 0; box-shadow: none; padding: var(--room-safe-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
@@ -173,7 +180,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-
 button { transition: color 180ms, background-color 180ms, opacity 180ms, transform 180ms; }
 button:active:not(:disabled) { transform: scale(.96); }
 button:disabled { opacity: .35; }
-.room-page { height: var(--room-viewport-height, 100dvh); min-height: 0; max-width: 1320px; margin: auto; padding: 28px 48px 18px; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 36%, #7261870d, transparent 64%); }
+.room-page { height: var(--room-viewport-height, var(--room-rest-height, 100dvh)); min-height: 0; max-width: 1320px; margin: auto; padding: 28px 48px 18px; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 36%, #7261870d, transparent 64%); }
 .room-shell { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; width: min(100%, 880px); margin: 0 auto; border: 1px solid #ffffff12; border-radius: 28px; background: #17181f; box-shadow: 0 28px 100px #00000030, 0 1px 0 #ffffff04 inset; overflow: hidden; }
 .room-header { flex-shrink: 0; min-height: 72px; padding: 26px 32px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .room-header h1 { font-size: 20px; line-height: 1.25; font-weight: 450; letter-spacing: -.5px; }
