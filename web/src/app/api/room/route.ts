@@ -13,7 +13,7 @@ export async function GET() {
   try {
     // Reads during a round must never insert introductions into that round.
     // Every writer also ensures initialization while holding this same lock.
-    if (release) await ensureRoom(group, AbortSignal.timeout(30_000))
+    if (release) await ensureRoom(group, AbortSignal.timeout(240_000))
     return Response.json({ chat: ROOM, agents: group.map((agent) => agent.name) })
   } catch { return Response.json({ error: "The room is unavailable." }, { status: 503 }) }
   finally { release?.() }
@@ -27,7 +27,7 @@ export async function DELETE() {
   try {
     const gone = await forget(group, ROOM)
     if (!gone) return Response.json({ error: "No agent took the clear." }, { status: 502 })
-    await ensureRoom(group, AbortSignal.timeout(30_000))
+    await ensureRoom(group, AbortSignal.timeout(240_000))
     return Response.json({ chat: ROOM, agents: gone, complete: gone === group.length })
   } catch { return Response.json({ error: "The room could not reopen." }, { status: 503 }) }
   finally { release() }
