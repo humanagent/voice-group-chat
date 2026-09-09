@@ -1,5 +1,5 @@
 import { type Agent, agents } from "@/lib/agents"
-import { audienceFor, deliver } from "@/lib/group"
+import { audienceFor, deliver, ROOM } from "@/lib/group"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -29,6 +29,9 @@ export async function POST(request: Request) {
   if (!chat || !message) {
     return Response.json({ error: "chat and message are required" }, { status: 400 })
   }
+  // Challenge sessions are server-owned: this public room endpoint must not
+  // inject additional prompts or impersonated speakers into a scored attempt.
+  if (chat !== ROOM || speaker !== "you") return Response.json({ error: "invalid room" }, { status: 400 })
 
   const stream = new ReadableStream({
     async start(controller) {

@@ -1,7 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowDownToLineIcon, EraserIcon, LoaderCircleIcon, RefreshCwIcon, Volume2Icon, VolumeXIcon, WifiOffIcon, XIcon } from "lucide-react"
+import Link from "next/link"
+import { ArrowDownToLineIcon, EraserIcon, LoaderCircleIcon, RefreshCwIcon, TrophyIcon, Volume2Icon, VolumeXIcon, WifiOffIcon, XIcon } from "lucide-react"
+import { ChallengeMeter, ChallengeResult } from "@/components/challenge-score"
+import { CHALLENGE_PROMPT_LIMIT, type ChallengeRun } from "@/lib/challenge"
 import { ChatMessage, type Line } from "@/components/chat-message"
 import { Composer, type ComposerHandle } from "@/components/composer"
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ui/conversation"
@@ -15,7 +18,7 @@ import type { DictationState } from "@/lib/dictation"
 
 type Pending = { id: string; text: string }
 
-export function Room({ names, speech }: { names: string[]; speech: boolean }) {
+export function Room({ names, speech, challenge = false }: { names: string[]; speech: boolean; challenge?: boolean }) {
   useRoomViewport()
   const [chat, setChat] = useState<string | null>(null)
   const [opening, setOpening] = useState(names.length > 0)
@@ -28,6 +31,7 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
   const [muted, setMuted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [installHelp, setInstallHelp] = useState(false)
+  const [challengeRun, setChallengeRun] = useState<ChallengeRun | null>(null)
   const pwa = usePwa()
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const waiting = useRef<Pending[]>([])
@@ -74,6 +78,13 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
     opener.current = controller
     const start = performance.now()
     try {
+      if (challenge) {
+        const response = await fetch("/api/challenge", { signal: controller.signal, cache: "no-store" })
+        if (!response.ok) throw new Error("The challenge isn’t available yet. Try connecting again.")
+        const data = await response.json()
+        if (!controller.signal.aborted) { setChallengeRun(data.run); setChat("challenge") }
+        return
+      }
       const response = await fetch("/api/room", { signal: controller.signal })
       if (!response.ok) throw new Error("The room isn’t available yet. Try connecting again.")
       const data = await response.json()
@@ -88,7 +99,7 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
     } catch (failure) {
       if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : "Couldn’t connect to the room."); record("room_error", 1) }
     } finally { if (!controller.signal.aborted) setOpening(false) }
-  }, [])
+  }, [challenge])
 
   useEffect(() => {
     // Opening synchronizes with the server; state changes happen after network I/O.
@@ -96,6 +107,19 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
     if (names.length) void open()
     return () => opener.current?.abort()
   }, [names.length, open])
+
+  // A refresh can arrive before a disconnected run finishes cancelling. Recover
+  // its persisted result without re-sending the prompt or minting another run.
+  useEffect(() => {
+    if (!challenge || busy || challengeRun?.status !== "running") return
+    const controller = new AbortController()
+    const timer = setInterval(() => {
+      void fetch("/api/challenge", { signal: controller.signal, cache: "no-store" }).then(async (response) => {
+        if (response.ok) { const data = await response.json(); if (!controller.signal.aborted) setChallengeRun(data.run) }
+      }).catch(() => {})
+    }, 2000)
+    return () => { clearInterval(timer); controller.abort() }
+  }, [challenge, busy, challengeRun?.status])
 
   const hush = useCallback(() => {
     voice.current?.stop()
@@ -118,10 +142,17 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
     let first = true
     delivery(item.id, "sending")
     try {
-      const response = await fetch("/api/say", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat, message: item.text }), signal: controller.signal })
+      const response = await fetch(challenge ? "/api/challenge" : "/api/say", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(challenge ? { message: item.text } : { chat, message: item.text }), signal: controller.signal })
+      if (challenge && !response.ok) {
+        const data = await response.json()
+        delivery(item.id, "not-sent")
+        setError(data.error || "The challenge couldn’t start. Try again.")
+        return false
+      }
       for await (const event of roomEvents(response)) {
         delivery(item.id, "sent")
-        if (event.type === "thinking") show(event.agent, "thinking")
+        if (event.type === "challenge") setChallengeRun(event.run)
+        else if (event.type === "thinking") show(event.agent, "thinking")
         else if (event.type === "quiet") show(event.agent, "quiet")
         else if (event.type === "failed") { show(event.agent, "unreachable"); setError(`${event.agent} couldn’t answer. You can try again in a moment.`); record("room_error", 1) }
         else if (event.type === "said") {
@@ -140,7 +171,16 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
       if (!controller.signal.aborted) { setError("The connection was interrupted. Your message may have arrived; review the conversation before sending it again."); record("stream_error", 1) }
       setPhase((current) => Object.fromEntries(Object.entries(current).map(([name, state]) => [name, state === "thinking" ? "listening" : state])))
       return false
-    } finally { if (round.current === controller) round.current = null }
+    } finally {
+      if (round.current === controller) round.current = null
+      if (challenge) {
+        try {
+          const response = await fetch("/api/challenge", { cache: "no-store" })
+          if (response.ok) { const data = await response.json(); setChallengeRun(data.run) }
+        } catch { /* The streamed result remains usable; a reload recovers it. */ }
+        setPhase({})
+      }
+    }
   }
 
   async function drain() {
@@ -161,6 +201,7 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
 
   function submit(text: string) {
     if (!chat || opening || clearing || !navigator.onLine || !text.trim()) return false
+    if (challenge && (draining.current || challengeRun || text.length > CHALLENGE_PROMPT_LIMIT)) return false
     const item = { id: crypto.randomUUID(), text: text.trim() }
     setLines((current) => [...current, { ...item, speaker: "you", spoken: false, animate: true, delivery: draining.current ? "queued" : "sending" }])
     setError(null)
@@ -196,29 +237,35 @@ export function Room({ names, speech }: { names: string[]; speech: boolean }) {
     <main className="room-page">
       <section className="room-shell" aria-label="The room" aria-busy={opening || clearing}>
         <header className="room-header">
-          <div><h1>The room</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
+          <div><h1>{challenge ? "Hackapot" : "The room"}</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
           <div className="room-actions">
+            <Link className="icon-button" href={challenge ? "/challenge/scoreboard" : "/challenge"} aria-label={challenge ? "Global scoreboard" : "Play Hackapot challenge"} title={challenge ? "Global scoreboard" : "Play Hackapot challenge"}><TrophyIcon size={18} /></Link>
             {!pwa.installed && (pwa.canInstall || pwa.ios) && <button className="icon-button" onClick={() => pwa.canInstall ? void pwa.install() : setInstallHelp(true)} aria-label="Install the room" title="Install the room"><ArrowDownToLineIcon size={18} /></button>}
             <button className="icon-button" disabled={!speech} onClick={() => { if (!muted) { voice.current?.stop(); setPhase({}) }; setMuted(!muted) }} aria-label={muted ? "Enable voice replies" : "Mute voice replies"} aria-pressed={muted} title={speech ? muted ? "Enable voice replies" : "Mute voice replies" : "Voice is not configured"}>{muted || !speech ? <VolumeXIcon size={18} /> : <Volume2Icon size={18} />}</button>
-            <button className="icon-button" onClick={() => confirmClear.current?.showModal()} disabled={!lines.length || busy || opening || clearing || !pwa.online || listening} aria-label="Clear the room" title="Clear the room"><EraserIcon size={18} /></button>
+            {!challenge && <button className="icon-button" onClick={() => confirmClear.current?.showModal()} disabled={!lines.length || busy || opening || clearing || !pwa.online || listening} aria-label="Clear the room" title="Clear the room"><EraserIcon size={18} /></button>}
           </div>
         </header>
+        {challenge && <ChallengeMeter run={challengeRun} />}
         <div className="stage-wrap"><Stage names={names} phase={phase} level={level} /></div>
         <Conversation className="room-conversation" initial="instant" resize="instant" contextRef={scroller as React.Ref<never>} aria-label="Conversation" aria-live="polite" aria-relevant="additions">
           <ConversationContent className="transcript-content">
             {!names.length && <p className="room-empty">No agents configured.</p>}
+            {challenge && !challengeRun && !lines.length && <div className="challenge-intro"><h2>20 replies. One prompt.</h2><p>Get the agents talking. Each reply adds one point; silence doesn’t count. Reach 20 to win Hackapot.</p><p>The round ends at 20 replies, when everyone goes quiet, or after 4 minutes. You can stop sooner.</p><Link href="/challenge/scoreboard">View global scoreboard →</Link></div>}
             {lines.map((line, i) => <ChatMessage key={line.id} line={line} live={i === reading} where={where} restore={restore} />)}
             {thinking.length > 0 && <div className="typing-indicator" role="status"><span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>{thinking.join(" & ")} {thinking.length === 1 ? "is" : "are"} thinking</div>}
+            {challenge && challengeRun && challengeRun.status !== "running" && <ChallengeResult key={challengeRun.id} run={challengeRun} online={pwa.online} published={setChallengeRun} />}
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
         <div className="room-notices">
+        {challenge && !busy && challengeRun?.status === "running" && <div className="room-notice" role="status"><span>Your previous attempt is finishing. Its saved result will appear here.</span></div>}
         {error && <div className="room-notice" role="alert"><span>{error}</span>{!chat && <button onClick={() => { setOpening(true); setError(null); void open() }} disabled={opening || !pwa.online}><RefreshCwIcon size={14} /> Reconnect</button>}<button className="notice-dismiss" onClick={() => setError(null)} aria-label="Dismiss notification"><XIcon size={14} /></button></div>}
         {!pwa.online && <div className="room-notice"><WifiOffIcon size={14} /><span>You’re offline. You can keep writing; send when you’re back.</span></div>}
         {pwa.update && <div className="room-notice"><span>Update available.</span><button disabled={busy || listening || opening || clearing || !!talking || pwa.updating} onClick={pwa.applyUpdate}><RefreshCwIcon size={14} />{pwa.updating ? "Updating…" : "Update"}</button></div>}
         {installHelp && <div className="room-notice" role="status"><span>In Safari, tap Share, then “Add to Home Screen”.</span><button onClick={() => setInstallHelp(false)} aria-label="Dismiss install instructions"><XIcon size={14} /></button></div>}
         </div>
-        <Composer ready={!!chat && !opening && !clearing} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} />
+        {challenge && challengeRun && challengeRun.status !== "running" ? <footer className="composer-wrap challenge-footer"><Link href="/">The room</Link><button className="confirm-button" disabled={busy} onClick={() => { hush(); setChallengeRun(null); setLines([]); setError(null) }}>{challengeRun.submitted ? "Play again" : "Skip & play again"}</button></footer> :
+          <Composer ready={!!chat && !opening && !clearing && (!challenge || (!busy && !challengeRun))} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={challenge ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={challenge ? "Your one prompt…" : undefined} />}
         {clearing && <div className="clearing-overlay" role="status"><LoaderCircleIcon className="animate-spin" size={24} />Clearing…</div>}
       </section>
       <dialog ref={confirmClear} className="room-dialog" aria-labelledby="clear-title"><h2 id="clear-title">Clear the room?</h2><p>This clears the shared conversation for every agent. It can’t be undone.</p><div><button onClick={() => confirmClear.current?.close()}>Keep the conversation</button><button className="confirm-button" onClick={() => void clear()}>Clear the room</button></div></dialog>

@@ -8,7 +8,7 @@ or an ElevenLabs account.
 
 ## First successful check — no credentials
 
-Prerequisites: Node.js 22 and pnpm 10.23.0. From the repository root:
+Prerequisites: Node.js 22.13+ and pnpm 10.23.0. From the repository root:
 
 ```bash
 pnpm --dir web install --frozen-lockfile
@@ -36,6 +36,10 @@ speech. `pnpm start` at the **root** starts Hermes; `pnpm --dir web start` start
 the **web server**. These are intentionally different processes.
 
 ## A reading path through the code
+
+For the one-prompt game and global scoreboard, see the [Hackapot developer
+contract](challenge.md): scoring, ownership, SQLite persistence, admission limits
+and the distinction between a demo win and prize-grade anti-cheat.
 
 | Responsibility | Entry point | Boundary to preserve |
 | --- | --- | --- |
@@ -158,6 +162,23 @@ A mocked browser test proves integration
 behavior, not real recognition quality, live provider latency or physical
 iPhone/Safari behavior. Test those separately with consented speech; do not
 commit recordings, credentials or real conversation traces.
+
+### Installed iOS app and keyboard geometry
+
+Chat routes lock document scrolling and keep the transcript as the scroll
+container. `use-room-viewport.ts` follows both visual viewport **resize and pan**
+while an input is focused and the keyboard reduces available height. Only
+tracking height leaves the page displaced after iOS scrolls a field into view.
+Without a keyboard, `100dvh` fills the standalone window; a stale, slightly
+shorter visual viewport must not leave a permanent blank strip below the chat.
+Keyboard mode also removes the extra home-indicator padding above the keyboard.
+Route cleanup restores normal scrolling for the global scoreboard.
+
+`browser/viewport.spec.ts` simulates a tall layout viewport with a smaller,
+offset visual viewport, plus scroll-only updates and stale dismissal geometry.
+Ordinary viewport resizing alone does not reproduce that iOS behavior. This
+regression test is not a physical iPhone/installed-PWA certification; verify
+open/type/send/dismiss/reopen and orientation changes on the target device.
 
 ## Deployment boundary
 

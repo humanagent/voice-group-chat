@@ -55,7 +55,7 @@ export function splitAudio(reply: string): { audio: string | null; text: string 
   return { audio, text: said.join("\n").trim() }
 }
 
-async function post(agent: Agent, path: string, body: unknown, ms = 240_000) {
+async function post(agent: Agent, path: string, body: unknown, ms = 240_000, signal?: AbortSignal) {
   const res = await fetch(`${agent.url}${path}`, {
     method: "POST",
     headers: {
@@ -63,7 +63,7 @@ async function post(agent: Agent, path: string, body: unknown, ms = 240_000) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(ms),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms),
   })
   if (!res.ok) {
     const detail = await res.text().catch(() => "")
@@ -76,9 +76,9 @@ async function post(agent: Agent, path: string, body: unknown, ms = 240_000) {
 /** Give one agent its own session for this chat. Each keeps a separate one
  *  under the same name, because history is per-agent: what Anna remembers of
  *  this room is not what Jordan remembers. */
-export async function openChat(agent: Agent, chat: string): Promise<void> {
+export async function openChat(agent: Agent, chat: string, signal?: AbortSignal): Promise<void> {
   try {
-    await post(agent, "/api/sessions", { session_id: chat }, 30_000)
+    await post(agent, "/api/sessions", { session_id: chat }, 30_000, signal)
   } catch {
     // Already there.
   }
@@ -86,11 +86,11 @@ export async function openChat(agent: Agent, chat: string): Promise<void> {
 
 /** Hand one line to one agent. The line arrives attributed, exactly as a
  *  person's would: an agent has no way to tell whether the speaker was human. */
-export async function deliver(agent: Agent, chat: string, speaker: string, text: string): Promise<Reply> {
+export async function deliver(agent: Agent, chat: string, speaker: string, text: string, signal?: AbortSignal): Promise<Reply> {
   try {
     const res = await post(agent, `/api/sessions/${chat}/chat`, {
       message: `${speaker}: ${text}`,
-    })
+    }, signal ? 30_000 : 240_000, signal)
     const raw: string = res?.message?.content ?? ""
     if (SILENT.has(raw.trim()) || !raw.trim()) return { spoke: false }
     const { audio, text: said } = splitAudio(raw)

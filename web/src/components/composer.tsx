@@ -10,11 +10,12 @@ import type { DictationState } from "@/lib/dictation"
 
 export type ComposerHandle = { restore: (text: string) => void }
 
-export function Composer({ ready, online, busy, speech, submit, stop, handle, recordingChanged, reportError }: {
+export function Composer({ ready, online, busy, speech, submit, stop, handle, recordingChanged, reportError, promptLimit = 20000, placeholder = "Type a message…" }: {
   ready: boolean; online: boolean; busy: boolean; speech: boolean;
   submit: (text: string) => boolean; stop: () => void;
   recordingChanged: (status: DictationState["status"]) => void; reportError: (message: string | null) => void;
   handle: React.RefObject<ComposerHandle | null>
+  promptLimit?: number; placeholder?: string
 }) {
   const { text: draft, saved } = useSyncExternalStore(subscribeDraft, getDraft, serverDraft)
   const box = useRef<HTMLTextAreaElement>(null)
@@ -74,7 +75,7 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
           </>
         ) : (
           <>
-            <textarea ref={box} aria-label="Message the room" rows={1} maxLength={20000} value={draft} onChange={(event) => change(event.target.value)} placeholder="Type a message…" onKeyDown={(event) => {
+            <textarea ref={box} aria-label="Message the room" rows={1} maxLength={promptLimit} value={draft} onChange={(event) => change(event.target.value)} placeholder={placeholder} onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); send() }
             }} />
             <div className="composer-buttons">

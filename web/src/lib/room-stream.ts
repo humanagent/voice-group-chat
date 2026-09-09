@@ -1,12 +1,16 @@
+import { isChallengeRun, type ChallengeRun } from "./challenge"
+
 export type RoomEvent =
   | { type: "thinking" | "quiet"; agent: string }
   | { type: "said"; agent: string; text: string; audio: string | null }
   | { type: "failed"; agent: string; error: string }
   | { type: "done" }
+  | { type: "challenge"; run: ChallengeRun }
 
 function parseEvent(data: string): RoomEvent {
   const event = JSON.parse(data)
   if (event?.type === "done") return { type: "done" }
+  if (event?.type === "challenge" && isChallengeRun(event.run)) return { type: "challenge", run: event.run }
   if (!event || typeof event.agent !== "string") throw new Error("Invalid room event")
   if (event.type === "thinking" || event.type === "quiet") return event
   if (event.type === "said" && typeof event.text === "string" && (event.audio === null || typeof event.audio === "string")) return event

@@ -155,6 +155,11 @@
 }
 html { color-scheme: dark; }
 body { margin: 0; }
+/* Lock only chat routes: the transcript scrolls, never the document behind it.
+   Absolute placement inside the fixed body follows iOS's visual viewport pan. */
+html[data-room-viewport="true"], html[data-room-viewport="true"] body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+html[data-room-viewport="true"] body { position: fixed; inset: 0; background: #17181f; }
+html[data-room-viewport="true"] .room-page { position: absolute; top: var(--room-viewport-top, 0px); left: 0; right: 0; }
 button, a, textarea { -webkit-tap-highlight-color: transparent; }
 button { touch-action: manipulation; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
@@ -275,7 +280,55 @@ html[data-compact="true"] .stage-wrap { display: none; }
 html[data-compact="true"] .room-header { padding-top: 12px; padding-bottom: 8px; }
 html[data-compact="true"] .composer-hint { display: none; }
 html[data-compact="true"] .composer textarea { max-height: min(144px, calc(var(--room-viewport-height, 100dvh) * .25)); }
+html[data-keyboard="true"] .composer-wrap { padding-bottom: 10px; }
 .perf-toggle { top: max(90px, calc(var(--room-viewport-height, 100dvh) - var(--room-composer-height, 90px) - 60px)); bottom: auto; right: max(18px, env(safe-area-inset-right)); }
 .perf-panel { max-height: calc(var(--room-viewport-height, 100dvh) - 36px); top: 18px; bottom: auto; }
 .perf-panel button { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
 .room-conversation > button { min-width: 44px; min-height: 44px; }
+
+/* Challenge controls share the room's spacing, touch targets and motion rules. */
+.challenge-meter { flex: 0 0 auto; padding: 12px 32px 0; }
+.challenge-meter > div { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: #bcb5c9; }
+.challenge-meter output { font-size: 24px; font-weight: 600; color: #eee8fa; font-variant-numeric: tabular-nums; }
+.challenge-meter output span { font-size: 13px; color: #bcb5c9; font-weight: 400; }
+.challenge-meter progress { display: block; width: 100%; height: 4px; margin-top: 8px; border: 0; border-radius: 8px; overflow: hidden; background: #ffffff12; color: #d8cafa; accent-color: #d8cafa; }
+.challenge-meter progress::-webkit-progress-bar { background: #ffffff12; }
+.challenge-meter progress::-webkit-progress-value { background: #d8cafa; transition: width 220ms ease; }
+.challenge-meter progress::-moz-progress-bar { background: #d8cafa; }
+.challenge-intro { margin: auto 0; padding: 16px 4px; max-width: 450px; }
+.challenge-intro h2 { font-size: clamp(24px, 4vw, 32px); line-height: 1.2; letter-spacing: -.8px; }
+.challenge-intro p, .challenge-result p { font-size: 13px; line-height: 1.65; color: #bcb5c9; margin-top: 12px; }
+.challenge-intro a, .challenge-result a, .scoreboard-page a { color: #d8cafa; text-decoration: underline; text-underline-offset: 4px; }
+.challenge-intro > a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 8px; font-size: 13px; }
+.challenge-result { padding: 20px; border: 1px solid #ffffff1a; border-radius: 18px; background: #202129; flex-shrink: 0; }
+.challenge-result h2 { font-size: 22px; letter-spacing: -.5px; }
+.challenge-won { border-color: #d8cafa55; background: linear-gradient(140deg, #31283e, #202129); }
+.challenge-won > svg { color: #e5ce99; margin-bottom: 14px; }
+.challenge-result form { margin-top: 20px; }
+.challenge-result label { display: block; margin-bottom: 8px; font-size: 13px; }
+.challenge-result input { display: block; width: 100%; min-height: 48px; border: 1px solid #ffffff35; border-radius: 10px; padding: 10px 12px; font-size: 16px; background: #17181f; color: #eeedf3; }
+.challenge-result button, .challenge-footer button { min-height: 44px; border-radius: 12px; padding: 10px 16px; font-size: 13px; }
+.challenge-result button { width: 100%; margin-top: 16px; }
+.challenge-result button:disabled { opacity: .55; }
+.challenge-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.challenge-footer a { display: inline-flex; min-height: 44px; align-items: center; font-size: 13px; color: #bcb5c9; }
+.scoreboard-page { min-height: 100dvh; max-width: 720px; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); color: #eeedf3; }
+.scoreboard-page nav { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; }
+.scoreboard-page nav a, .scoreboard-tools button { display: inline-flex; align-items: center; min-height: 44px; }
+.scoreboard-page header { padding: 36px 0 24px; }
+.scoreboard-page header svg { color: #e5ce99; margin-bottom: 14px; }
+.scoreboard-page h1 { font-size: clamp(28px, 6vw, 40px); letter-spacing: -1px; line-height: 1.15; }
+.scoreboard-page header p, .scoreboard-empty { margin-top: 14px; font-size: 14px; line-height: 1.6; color: #bcb5c9; }
+.scoreboard-tools { display: flex; justify-content: space-between; align-items: center; gap: 16px; color: #bcb5c9; font-size: 12px; }
+.scoreboard-tools button { flex-shrink: 0; padding: 0 10px; color: #d8cafa; }
+.scoreboard-list { list-style: none; padding: 0; margin: 12px 0; }
+.scoreboard-list li { display: flex; align-items: center; gap: 16px; min-height: 76px; padding: 16px; border-bottom: 1px solid #ffffff12; }
+.scoreboard-list li:first-child { background: #d8cafa0c; border-radius: 14px; }
+.score-rank { width: 24px; flex-shrink: 0; color: #bcb5c9; font-variant-numeric: tabular-nums; }
+.score-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 15px; }
+.score-name small { display: block; color: #e5ce99; font-size: 11px; margin-top: 5px; }
+.score-value { flex-shrink: 0; font-size: 20px; font-variant-numeric: tabular-nums; }
+.score-value span { font-size: 12px; color: #bcb5c9; }
+.scoreboard-footnote { color: #bcb5c9; font-size: 12px; margin-top: 24px; line-height: 1.6; }
+@media (max-width: 640px) { .challenge-meter { padding: 10px 20px 0; }.challenge-result { padding: 18px; } }
+@media (max-height: 620px) { .challenge-meter { padding-top: 0; }.challenge-meter output { font-size: 18px; }.challenge-meter progress { margin-top: 4px; } }
