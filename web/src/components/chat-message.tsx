@@ -5,6 +5,7 @@ import { CheckIcon, CopyIcon, CornerUpLeftIcon, Volume2Icon } from "lucide-react
 import { SoftOrb } from "@/components/soft-orb"
 import { Response } from "@/components/ui/response"
 import { upTo, type Position } from "@/lib/speaking"
+import { visualLoop } from "@/lib/visual-motion"
 
 export type Line = {
   id: string; speaker: string; text: string; spoken: boolean; animate?: boolean;
@@ -17,19 +18,15 @@ function Reading({ text, live, where, speaker }: { text: string; live: boolean; 
   const [cut, setCut] = useState(text.length)
   const markdown = /(^|\n)\s*([#>|*-]|\d+\.)|[*_`\[]/.test(text)
   useEffect(() => {
-    if (!live || markdown || matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    let frame = 0
+    if (!live || markdown) return
     let last = 0
-    const follow = (time: number) => {
-      if (time - last > 32 && !document.hidden) {
+    return visualLoop((time) => {
+      if (time - last > 32) {
         const at = where()
         setCut(at && at.agent === speaker ? upTo(text, at.said, at.spoken) : text.length)
         last = time
       }
-      frame = requestAnimationFrame(follow)
-    }
-    frame = requestAnimationFrame(follow)
-    return () => cancelAnimationFrame(frame)
+    }, () => setCut(text.length))
   }, [text, speaker, live, where, markdown])
   if (markdown) return <Response>{text}</Response>
   const end = live ? cut : text.length

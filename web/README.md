@@ -91,11 +91,17 @@ returns 404, and the room falls back to marking the line as spoken.
 ## Chat experience
 
 The stage uses layered CSS gradients and transform animations. It does not load
-Three.js or allocate WebGL contexts. Only the speaking orb samples audio, and
-that loop pauses in hidden tabs and respects reduced motion. Messages are
+Three.js or allocate WebGL contexts. Only the speaking orb samples audio, with
+elapsed-time easing so its response is independent of the display refresh rate.
+The orb and text-highlight loops pause in hidden tabs and respond immediately
+to reduced-motion changes, without changing playback. Messages are
 memoized; typing updates the composer without rendering the transcript. Plain
 text can follow the voice without swapping the paragraph's layout. Markdown
 keeps a stable rendered tree throughout playback.
+
+Challenge dialogs enter with a short opacity/scale transition; the leaderboard
+and existing recording surface fade in. Reduced motion disables these effects.
+Entrances never animate keyboard/composer geometry or delay Play and dismissal.
 
 The transcript follows replies while you are at the bottom. Scrolling up lets
 you read in place; the “Jump to latest messages” button brings you back. New

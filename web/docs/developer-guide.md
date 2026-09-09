@@ -154,6 +154,13 @@ For optional error tracking and sampled numeric logs, see the
   touch targets, compact/landscape views and the Linux screenshot baselines.
 - [`pwa.spec.ts`](../../tests/web/browser/pwa.spec.ts) simulates install/update events
   and verifies update guards, timeouts and draft recovery.
+- [`motion.spec.ts`](../../tests/web/browser/motion.spec.ts) checks that modal
+  entrances leave room geometry untouched and changing reduced motion or tab
+  visibility rests the visuals without stopping speech. The audio clock is
+  silent and deterministic; no provider request is made.
+- [`visual-motion.test.ts`](../../tests/web/visual-motion.test.ts) checks elapsed-time
+  easing at 30/60/90/120Hz and animation-loop suspension, resumption and cleanup.
+  The shared helper only draws visuals; it must never own playback or recording.
 - Sentry privacy unit tests and browser/Node envelope tests verify redaction
   with private-content sentinels and local transports, never a live account.
 
