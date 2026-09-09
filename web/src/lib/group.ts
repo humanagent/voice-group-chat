@@ -85,12 +85,19 @@ export async function openChat(agent: Agent, chat: string, signal?: AbortSignal)
 }
 
 /** Hand one line to one agent. The line arrives attributed, exactly as a
- *  person's would: an agent has no way to tell whether the speaker was human. */
+ *  person's would: an agent has no way to tell whether the speaker was human.
+ *
+ *  A turn gets the same 240s whether or not a caller can cancel it. This once
+ *  read `signal ? 30_000 : 240_000`, and since every caller passes a signal,
+ *  every ordinary reply and every introduction was quietly capped at 30s: an
+ *  agent that used a tool for 40s was reported as unavailable while its answer
+ *  landed in its history unseen. Cancellation and budget are separate things;
+ *  whoever needs a shorter budget puts it in the signal it passes. */
 export async function deliver(agent: Agent, chat: string, speaker: string, text: string, signal?: AbortSignal): Promise<Reply> {
   try {
     const res = await post(agent, `/api/sessions/${chat}/chat`, {
       message: `${speaker}: ${text}`,
-    }, signal ? 30_000 : 240_000, signal)
+    }, 240_000, signal)
     const raw: string = res?.message?.content ?? ""
     if (SILENT.has(raw.trim()) || !raw.trim()) return { spoke: false }
     const { audio, text: said } = splitAudio(raw)
