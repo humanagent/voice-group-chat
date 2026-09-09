@@ -79,10 +79,11 @@ test("changing motion or visibility during speech rests only the visuals", async
   })
   await page.emulateMedia({ reducedMotion: "no-preference" })
   await page.goto("/")
-  await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeDisabled()
+  // An enabled SSR textarea does not prove hydration has attached its events.
+  await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
   const input = page.getByRole("textbox", { name: "Message the room" })
-  await expect(input).toBeEnabled()
   await input.fill("Anna, say hello.")
+  await expect(input).toHaveValue("Anna, say hello.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
   const message = page.getByRole("article", { name: "Anna said" })
   const ahead = message.locator(".reading-ahead")
