@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js"
+
 import { stateRoot } from "@/lib/state"
 
 /**
@@ -39,3 +41,27 @@ export function key(): string {
  * `tests/web/voices.test.ts`.
  */
 export const TTS_MODEL = "eleven_flash_v2_5"
+
+/**
+ * The ElevenLabs client, held for as long as the key does not change.
+ *
+ * Reused rather than built per request: a client owns a connection pool, and
+ * these routes are the hot path of a conversation. Stashed on `globalThis`
+ * because Next bundles each route separately and a development server reloads
+ * a module without restarting the process.
+ *
+ * Both routes were hand-rolled `fetch` calls before. The SDK is what this
+ * project is meant to be showing, and it brings the parts that were missing:
+ * typed responses instead of a shape asserted at the call site, a real error
+ * carrying the provider's status and request id, and per-request timeouts,
+ * retries and cancellation as arguments rather than a hand-assembled signal.
+ */
+export function client(apiKey: string): ElevenLabsClient {
+  const store = globalThis as typeof globalThis & {
+    __elevenlabs?: { key: string; client: ElevenLabsClient }
+  }
+  if (store.__elevenlabs?.key === apiKey) return store.__elevenlabs.client
+  const made = new ElevenLabsClient({ apiKey })
+  store.__elevenlabs = { key: apiKey, client: made }
+  return made
+}
