@@ -12,12 +12,12 @@ Prerequisites: Node.js 22 and pnpm 10.23.0. From the repository root:
 
 ```bash
 pnpm --dir web install --frozen-lockfile
-pnpm --dir web exec playwright install chromium
+pnpm --dir web exec playwright install chromium webkit firefox
 pnpm --dir web check
 ```
 
 `check` runs lint, type-checks application **and test** code, runs the unit suite, builds
-the production app, then starts the browser-test server on port 3100. It shuts
+the production app with an intercepted test-only Sentry DSN, then starts the browser-test server on port 3100. It shuts
 that server down afterward. Tests intercept agent and speech routes and the
 ElevenLabs WebSocket; the placeholder key in `playwright.config.ts` only enables
 voice controls. Do not replace it with a real key. Port 3100 must be available.
@@ -29,8 +29,9 @@ pnpm --dir web test -- dictation.test.ts
 pnpm --dir web test:e2e -- dictation.spec.ts --project=desktop
 ```
 
-The browser command uses the most recent production build; rebuild after a UI
-change. See [Running it](../README.md#running-it) to use real agent gateways and
+The browser command uses the most recent production build; run `pnpm --dir web build:test` after a UI
+change. Use `pnpm --dir web build` for a normal build without the test DSN.
+See [Running it](../README.md#running-it) to use real agent gateways and
 speech. `pnpm start` at the **root** starts Hermes; `pnpm --dir web start` starts
 the **web server**. These are intentionally different processes.
 
@@ -46,6 +47,8 @@ the **web server**. These are intentionally different processes.
 | Credential exchange | [`app/api/scribe/route.ts`](../src/app/api/scribe/route.ts) | Server-only key, single-use token, no-store responses, bounded upstream wait. |
 | Metrics contract | [`lib/telemetry-schema.ts`](../src/lib/telemetry-schema.ts) | Numeric allowlist, bounded values, no transcript payloads. |
 | Browser transport | [`lib/telemetry.ts`](../src/lib/telemetry.ts) | Bounded buffers, best-effort batching; diagnostics must not block a conversation. |
+| Sentry privacy boundary | [`lib/sentry-privacy.ts`](../src/lib/sentry-privacy.ts) | Reconstruct error/log payloads; allowlisted numeric metrics and bundle coordinates only, no attachments or arbitrary context. |
+| Optional Sentry exporter | [`lib/sentry-client.ts`](../src/lib/sentry-client.ts) | No initialization without DSN; sample healthy visits, throttle repeated issues, export outside the render path. |
 
 ### Recording lifecycle
 
@@ -125,6 +128,8 @@ Diagnostics are best effort, not an audit log: batches flush every 15 seconds
 and on page hide, with at most 40 pending and 120 local samples. Nothing here
 provisions retention, dashboards or alerts. Connect the structured server log
 stream to your hosting platform's log drain if you need persistent analysis.
+For optional error tracking and sampled numeric logs, see the
+[Sentry configuration and privacy contract](../README.md#sentry-optional).
 
 ## Changes worth testing
 
@@ -139,9 +144,17 @@ stream to your hosting platform's log drain if you need persistent analysis.
   dispatch, recovery and log privacy. No provider call is made.
 - Existing [`room.spec.ts`](../../tests/web/browser/room.spec.ts) covers chat,
   scroll behavior, IME, accessibility, PWA/offline and draft persistence.
+- [`mobile.spec.ts`](../../tests/web/browser/mobile.spec.ts) covers layout bounds,
+  touch targets, compact/landscape views and the Linux screenshot baselines.
+- [`pwa.spec.ts`](../../tests/web/browser/pwa.spec.ts) simulates install/update events
+  and verifies update guards, timeouts and draft recovery.
+- Sentry privacy unit tests and browser/Node envelope tests verify redaction
+  with private-content sentinels and local transports, never a live account.
 
 Browser artifacts live in `web/test-results/` and are ignored by Git. CI retains
-failure artifacts for seven days. A mocked browser test proves integration
+review artifacts for seven days. Pixel comparisons run separately in a pinned
+Linux Playwright container; see [Verification](../README.md#verification).
+A mocked browser test proves integration
 behavior, not real recognition quality, live provider latency or physical
 iPhone/Safari behavior. Test those separately with consented speech; do not
 commit recordings, credentials or real conversation traces.

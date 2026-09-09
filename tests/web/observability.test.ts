@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { frameSummary, parseSamples } from "@/lib/telemetry-schema"
 import { POST } from "@/app/api/telemetry/route"
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe("privacy and limits of frontend telemetry", () => {
   const metric = { name: "INP", value: 87, at: 3500 }
@@ -40,5 +40,20 @@ describe("privacy and limits of frontend telemetry", () => {
       body: JSON.stringify([metric]),
     }))
     expect(response.status).toBe(204)
+  })
+  it("keeps local logging working when an optional batch exporter throws", async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal("window", new EventTarget())
+    vi.stubGlobal("document", Object.assign(new EventTarget(), { hidden: false, documentElement: { dataset: {} } }))
+    vi.stubGlobal("navigator", { onLine: true, sendBeacon: () => false })
+    const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", send)
+    const { record, startTelemetry, subscribeBatches } = await import("@/lib/telemetry")
+    const remove = subscribeBatches(() => { throw new Error("Exporter unavailable") })
+    startTelemetry()
+    record("dictation_render", 12)
+    expect(() => window.dispatchEvent(new Event("pagehide"))).not.toThrow()
+    expect(send).toHaveBeenCalledWith("/api/telemetry", expect.objectContaining({ body: expect.stringContaining('"name":"dictation_render"') }))
+    remove()
   })
 })

@@ -186,25 +186,83 @@ The implementation follows Next's
 [client instrumentation](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client)
 and [PWA conventions](https://nextjs.org/docs/app/guides/progressive-web-apps).
 
+### Sentry (optional)
+
+Copy the Sentry settings from [.env.example](.env.example) into your existing
+`web/.env.local` without overwriting your provider configuration. Set
+`NEXT_PUBLIC_SENTRY_DSN` to the project's public DSN, then rebuild and restart.
+Without a DSN the SDK is not initialized. A separate `SENTRY_DSN` can override
+the server destination. Use the environment settings to separate local,
+staging and production reports. This repo does not create a Sentry project.
+
+The integration captures browser exceptions, unhandled rejections, React render
+failures and uncaught Next.js server request errors. Known room, stream, speech,
+PWA and dictation failures become issues grouped by metric name, capped at one
+issue per metric per minute per visit. They also produce numeric Sentry Logs.
+Healthy timing logs are sampled for 10% of visits; operational failure logs are
+always attempted. Export runs on the existing 15-second/page-hide batch, outside
+the transcription render path. Delivery is best effort, including when offline
+or an ad blocker blocks Sentry. The local diagnostics/export keep working.
+
+Privacy is enforced in [sentry-privacy.ts](src/lib/sentry-privacy.ts), shared by
+browser and server. Only known numeric metric names/values and sanitized error
+types with bundled code coordinates are sent. Error messages, request bodies,
+query parameters, headers, cookies, user context, local paths, stack variables,
+console/DOM breadcrumbs and arbitrary log attributes are removed. Replay,
+automatic tracing, session tracking and AI-content collection are disabled.
+No audio, transcripts or draft text is sent by this integration. Sentry remains
+a third-party network destination: configure its project retention, access and
+IP-address storage settings appropriately. The intentional trade-off is less
+error context; use stack locations, release and the numeric failure category.
+
+For readable stacks, configure `SENTRY_ORG`, `SENTRY_PROJECT` and the secret
+`SENTRY_AUTH_TOKEN` **in the deployment's build environment**. All three are
+required before source-map uploading is enabled. The build plugin associates
+the Git release and deletes uploaded client maps. Never use a `NEXT_PUBLIC_`
+prefix for the auth token. CI tests need no Sentry secrets and never upload maps.
+
+After configuring a real project, verify a consented test failure appears in
+Issues, check a `room.performance` log, and inspect its fields before rollout.
+Set project alerts for runtime errors, `dictation_finalize_timeout` and
+`dictation_disconnect`; dashboard/alert provisioning is not automated here.
+The implementation follows Sentry's [Next.js setup](https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/)
+and explicitly opts out of its [data collection defaults](https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#dataCollection).
+
 ## Verification
 
 ```bash
 pnpm test                      # parsing, stream failures, telemetry limits, existing logic
 pnpm typecheck
-pnpm build
-pnpm exec playwright install chromium  # once
+pnpm build:test                 # production build with an intercepted, reserved test DSN
+pnpm exec playwright install chromium webkit firefox  # once
 pnpm test:e2e                  # production app on port 3100
 pnpm check                     # lint, types (including tests), unit tests, build, browsers
 ```
 
-Browser tests cover desktop and a mobile viewport, drafts across reloads,
+Browser tests cover Chromium, mobile WebKit and Firefox, drafts across reloads,
 offline navigation, cache exclusions, message ordering, interrupted streams,
 IME input, scrolling, reduced motion and automated accessibility checks.
 Screenshots and traces are written to `web/test-results/` (ignored by Git).
 The transcription tests use Chromium's fake microphone through the real SDK
 audio worklet, with a mocked provider WebSocket. They verify capture cleanup,
 final-word delivery, recovery, long-text visibility and privacy-safe diagnostics.
-They make no paid API calls. CI runs the same desktop/mobile browser suite and
-uploads failure screenshots and traces. Real speech recognition quality,
-physical iOS keyboard behavior and field performance still need device testing.
+They make no paid API calls. Sentry tests inspect actual browser and Node SDK
+envelopes against private-content sentinels without contacting a Sentry account.
+Install/update tests simulate browser events, including reload guards, a stalled
+update and draft recovery. Real service-worker offline tests run on Chromium:
+[Playwright cannot instrument that network lifecycle on the other engines](https://playwright.dev/docs/service-workers).
+
+Visual assertions cover 320–430px portrait screens, 844px landscape, short tablet
+windows, multiline drafts, keyboard-height/offline notices and iOS install help.
+`pnpm test:visual` compares committed screenshots in the pinned
+`mcr.microsoft.com/playwright:v1.63.0-noble` Linux/amd64 environment used by CI.
+Do not update baselines on macOS: system fonts differ. Review the images before
+accepting changes with `pnpm test:visual --update-snapshots` in that container.
+`ROOM_TEST_URL` can point visual tests at an already-running fixture server;
+normal runs start the isolated port-3100 server automatically.
+
+CI uploads screenshots/traces as `browser-review`, including successful runs.
+After testing, use `pnpm build && pnpm start` for a normal local build (without
+the test DSN). Real speech recognition quality, installed iOS behavior,
+physical keyboard behavior and field performance still need device testing.
 A local trace is not a field performance guarantee.
