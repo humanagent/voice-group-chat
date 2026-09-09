@@ -150,6 +150,11 @@ For optional error tracking and sampled numeric logs, see the
   dispatch, recovery and log privacy. No provider call is made.
 - Existing [`room.spec.ts`](../../tests/web/browser/room.spec.ts) covers chat,
   scroll behavior, IME, accessibility, PWA/offline and draft persistence.
+- [`startup.spec.ts`](../../tests/web/browser/startup.spec.ts) delays browser
+  scripts to check the real server-rendered input, then holds the room response
+  to verify drafts become editable after hydration without waiting for agents.
+  Saved text survives startup and remains editable offline; input geometry
+  must not jump when its handlers become ready.
 - [`mobile.spec.ts`](../../tests/web/browser/mobile.spec.ts) covers layout bounds,
   touch targets, compact/landscape views and the Linux screenshot baselines.
 - [`pwa.spec.ts`](../../tests/web/browser/pwa.spec.ts) simulates install/update events

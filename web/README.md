@@ -125,6 +125,11 @@ current device under `the-room-draft`. Conversation history and successful
 recordings are not stored there; a recording recovered after an error becomes
 part of that local draft. Shared-device users should clear drafts when finished.
 
+The initial HTML keeps the input disabled until its browser handlers are ready,
+so typing during a slow script download cannot be silently lost. This guard is
+independent of the room connection: once interactive, drafts remain editable
+while connecting or offline. It adds no footer spacer or layout transition.
+
 ## Install and offline behavior
 
 Use the production server to try the PWA locally:

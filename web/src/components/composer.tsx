@@ -10,6 +10,8 @@ import type { DictationState } from "@/lib/dictation"
 
 export type ComposerHandle = { restore: (text: string) => void; startRecording: () => boolean }
 
+const noSubscription = () => () => {}
+
 export function Composer({ ready, online, busy, speech, submit, stop, handle, recordingChanged, reportError, promptLimit = 20000, placeholder = "Type a message…" }: {
   ready: boolean; online: boolean; busy: boolean; speech: boolean;
   submit: (text: string) => boolean; stop: () => void;
@@ -17,6 +19,9 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
   handle: React.RefObject<ComposerHandle | null>
   promptLimit?: number; placeholder?: string
 }) {
+  // Server HTML has no input handlers. Enable only after hydration, not after
+  // the gateway connects: drafts must stay editable while connecting/offline.
+  const interactive = useSyncExternalStore(noSubscription, () => true, () => false)
   const { text: draft, saved } = useSyncExternalStore(subscribeDraft, getDraft, serverDraft)
   const box = useRef<HTMLTextAreaElement>(null)
   const keyboardFocus = useKeyboardFocus<HTMLTextAreaElement>()
@@ -87,7 +92,7 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
           </>
         ) : (
           <>
-            <textarea ref={box} {...keyboardFocus} aria-label="Message the room" rows={1} maxLength={promptLimit} value={draft} onChange={(event) => change(event.target.value)} placeholder={placeholder} onKeyDown={(event) => {
+            <textarea ref={box} {...keyboardFocus} aria-label="Message the room" rows={1} maxLength={promptLimit} disabled={!interactive} value={draft} onChange={(event) => change(event.target.value)} placeholder={interactive ? placeholder : "Loading…"} onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); send() }
             }} />
             <div className="composer-buttons">
