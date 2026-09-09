@@ -37,7 +37,7 @@ the **web server**. These are intentionally different processes.
 
 ## A reading path through the code
 
-For the one-prompt game and global scoreboard, see the [Hackapot developer
+For the one-prompt game and global scoreboard, see the [challenge developer
 contract](challenge.md): scoring, ownership, SQLite persistence, admission limits
 and the distinction between a demo win and prize-grade anti-cheat.
 
@@ -172,6 +172,10 @@ tracking height leaves the page displaced after iOS scrolls a field into view.
 Without a keyboard, `100dvh` fills the standalone window; a stale, slightly
 shorter visual viewport must not leave a permanent blank strip below the chat.
 Keyboard mode also removes the extra home-indicator padding above the keyboard.
+The mobile header and orb stage keep the same geometry before and after focus;
+only the transcript area shrinks as the composer moves above the keyboard.
+The stage is never hidden to make space. Long drafts scroll inside the input
+in compact viewports, and programmatic refocus uses `preventScroll`.
 Route cleanup restores normal scrolling for the global scoreboard.
 
 `browser/viewport.spec.ts` simulates a tall layout viewport with a smaller,

@@ -237,9 +237,9 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
     <main className="room-page">
       <section className="room-shell" aria-label="The room" aria-busy={opening || clearing}>
         <header className="room-header">
-          <div><h1>{challenge ? "Hackapot" : "The room"}</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
+          <div><h1>{challenge ? "Challenge" : "The room"}</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
           <div className="room-actions">
-            <Link className="icon-button" href={challenge ? "/challenge/scoreboard" : "/challenge"} aria-label={challenge ? "Global scoreboard" : "Play Hackapot challenge"} title={challenge ? "Global scoreboard" : "Play Hackapot challenge"}><TrophyIcon size={18} /></Link>
+            <Link className="icon-button" href={challenge ? "/challenge/scoreboard" : "/challenge"} aria-label={challenge ? "Global scoreboard" : "Play challenge"} title={challenge ? "Global scoreboard" : "Play challenge"}><TrophyIcon size={18} /></Link>
             {!pwa.installed && (pwa.canInstall || pwa.ios) && <button className="icon-button" onClick={() => pwa.canInstall ? void pwa.install() : setInstallHelp(true)} aria-label="Install the room" title="Install the room"><ArrowDownToLineIcon size={18} /></button>}
             <button className="icon-button" disabled={!speech} onClick={() => { if (!muted) { voice.current?.stop(); setPhase({}) }; setMuted(!muted) }} aria-label={muted ? "Enable voice replies" : "Mute voice replies"} aria-pressed={muted} title={speech ? muted ? "Enable voice replies" : "Mute voice replies" : "Voice is not configured"}>{muted || !speech ? <VolumeXIcon size={18} /> : <Volume2Icon size={18} />}</button>
             {!challenge && <button className="icon-button" onClick={() => confirmClear.current?.showModal()} disabled={!lines.length || busy || opening || clearing || !pwa.online || listening} aria-label="Clear the room" title="Clear the room"><EraserIcon size={18} /></button>}
@@ -250,7 +250,7 @@ export function Room({ names, speech, challenge = false }: { names: string[]; sp
         <Conversation className="room-conversation" initial="instant" resize="instant" contextRef={scroller as React.Ref<never>} aria-label="Conversation" aria-live="polite" aria-relevant="additions">
           <ConversationContent className="transcript-content">
             {!names.length && <p className="room-empty">No agents configured.</p>}
-            {challenge && !challengeRun && !lines.length && <div className="challenge-intro"><h2>20 replies. One prompt.</h2><p>Get the agents talking. Each reply adds one point; silence doesn’t count. Reach 20 to win Hackapot.</p><p>The round ends at 20 replies, when everyone goes quiet, or after 4 minutes. You can stop sooner.</p><Link href="/challenge/scoreboard">View global scoreboard →</Link></div>}
+            {challenge && !challengeRun && !lines.length && <div className="challenge-intro"><h2>20 replies. One prompt.</h2><p>Get the agents talking. Each reply adds one point; silence doesn’t count. Reach 20 to win.</p><p>The round ends at 20 replies, when everyone goes quiet, or after 4 minutes. You can stop sooner.</p><Link href="/challenge/scoreboard">View global scoreboard →</Link></div>}
             {lines.map((line, i) => <ChatMessage key={line.id} line={line} live={i === reading} where={where} restore={restore} />)}
             {thinking.length > 0 && <div className="typing-indicator" role="status"><span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>{thinking.join(" & ")} {thinking.length === 1 ? "is" : "are"} thinking</div>}
             {challenge && challengeRun && challengeRun.status !== "running" && <ChallengeResult key={challengeRun.id} run={challengeRun} online={pwa.online} published={setChallengeRun} />}

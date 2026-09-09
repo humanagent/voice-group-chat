@@ -13,7 +13,7 @@ answers out loud. Type into it, or tap the microphone to record, then tap Send.
 For the frontend code walkthrough, credential-free tests and observability
 workflow, see the [developer guide](web/docs/developer-guide.md).
 
-**Hackapot challenge:** open `/challenge` (the trophy in the room). Send one
+**Conversation challenge:** open `/challenge` (the trophy in the room). Send one
 prompt; each generated agent reply adds a point. Reach 20 to win, then enter
 your name to publish the result to the global scoreboard. Publication is optional;
 prompts and conversations are not published. See the [rules, storage and security

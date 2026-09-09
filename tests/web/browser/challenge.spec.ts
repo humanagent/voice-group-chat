@@ -39,11 +39,11 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   return { starts: () => starts }
 }
 
-test("20 wins Hackapot, asks for a name, and publishes to the global scoreboard", async ({ page }) => {
+test("20 wins the challenge, asks for a name, and publishes to the global scoreboard", async ({ page }) => {
   const round = await setup(page)
   await page.getByRole("textbox", { name: "Message the room" }).fill("Anna, ask everyone a question.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "You won Hackapot!" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
   await expect(page.getByLabel("Challenge score")).toHaveText("20 / 20")
   await expect(page.getByLabel("Your name")).toBeVisible()
   await page.getByLabel("Your name").fill("Fabri")
@@ -52,7 +52,7 @@ test("20 wins Hackapot, asks for a name, and publishes to the global scoreboard"
   expect(round.starts()).toBe(1)
   await page.getByRole("link", { name: "View global scoreboard", exact: true }).click()
   await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("Fabri")
-  await expect(page.getByText("Hackapot winner")).toBeVisible()
+  await expect(page.getByText("Winner", { exact: true })).toBeVisible()
 })
 
 test("three replies produce three points, not a win, and publication can be skipped", async ({ page }) => {
@@ -61,7 +61,7 @@ test("three replies produce three points, not a win, and publication can be skip
   await page.getByRole("button", { name: "Send message", exact: true }).click()
   await expect(page.getByLabel("Challenge score")).toHaveText("3 / 20")
   await expect(page.getByRole("heading", { name: "The conversation ended." })).toBeVisible()
-  await expect(page.getByText("You won Hackapot!")).toHaveCount(0)
+  await expect(page.getByText("You won!")).toHaveCount(0)
   await page.getByRole("button", { name: "Skip & play again" }).click()
   await expect(page.getByLabel("Challenge score")).toHaveText("0 / 20")
   await expect(page.getByRole("textbox", { name: "Message the room" })).toBeVisible()
@@ -69,7 +69,7 @@ test("three replies produce three points, not a win, and publication can be skip
 
 test("reload recovers an unpublished result without sending another prompt", async ({ page }) => {
   const round = await setup(page, 20, completed(20))
-  await expect(page.getByRole("heading", { name: "You won Hackapot!" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
   await page.reload()
   await expect(page.getByLabel("Your name")).toBeVisible()
   expect(round.starts()).toBe(0)
@@ -78,9 +78,12 @@ test("reload recovers an unpublished result without sending another prompt", asy
 test("result form fits a narrow keyboard-height viewport and is accessible", async ({ page }, info) => {
   await page.setViewportSize({ width: 320, height: 568 })
   await setup(page, 20, completed(20))
+  const stageBefore = await page.locator(".stage-wrap").boundingBox()
   const name = page.getByLabel("Your name")
   await name.fill("Fabri")
   await page.setViewportSize({ width: 320, height: 340 })
+  await expect(page.locator(".stage-wrap")).toBeInViewport({ ratio: 1 })
+  expect(await page.locator(".stage-wrap").boundingBox()).toEqual(stageBefore)
   await name.scrollIntoViewIfNeeded()
   await expect(name).toBeInViewport({ ratio: 1 })
   await page.getByRole("button", { name: "Publish score" }).scrollIntoViewIfNeeded()

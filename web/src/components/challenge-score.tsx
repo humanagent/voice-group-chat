@@ -9,12 +9,12 @@ export function ChallengeMeter({ run }: { run: ChallengeRun | null }) {
   const score = run?.score ?? 0
   return <div className="challenge-meter">
     <div><span>One prompt</span><output aria-label="Challenge score" aria-live="polite">{score}<span> / {CHALLENGE_TARGET}</span></output></div>
-    <progress value={score} max={CHALLENGE_TARGET} aria-label="Progress toward Hackapot" />
+    <progress value={score} max={CHALLENGE_TARGET} aria-label="Challenge progress" />
   </div>
 }
 
 const endings = {
-  won: "You won Hackapot!", quiet: "The conversation ended.", stopped: "Challenge stopped.",
+  won: "You won!", quiet: "The conversation ended.", stopped: "Challenge stopped.",
   timeout: "Time’s up.", failed: "An agent couldn’t finish.", running: "Challenge in progress…",
 }
 
@@ -38,7 +38,7 @@ export function ChallengeResult({ run, online, published }: { run: ChallengeRun;
   return <section className={`challenge-result ${run.status === "won" ? "challenge-won" : ""}`} aria-labelledby="challenge-result-title">
     {run.status === "won" && <TrophyIcon size={32} aria-hidden="true" />}
     <h2 id="challenge-result-title">{endings[run.status]}</h2>
-    <p>{run.score} {run.score === 1 ? "reply" : "replies"} from one prompt.{run.score < CHALLENGE_TARGET ? " Reach 20 to win Hackapot." : ""}</p>
+    <p>{run.score} {run.score === 1 ? "reply" : "replies"} from one prompt.{run.score < CHALLENGE_TARGET ? " Reach 20 to win." : ""}</p>
     {run.submitted ? <p role="status">Result published. <Link href="/challenge/scoreboard">View global scoreboard</Link></p> :
       <form onSubmit={submit} aria-label="Publish result">
         <label htmlFor="challenger-name">Your name</label>
@@ -73,12 +73,12 @@ export function Scoreboard() {
   }, [])
   return <main className="scoreboard-page">
     <nav><Link href="/challenge">← Challenge</Link><Link href="/">The room</Link></nav>
-    <header><TrophyIcon size={28} aria-hidden="true" /><h1>Global scoreboard</h1><p>One prompt. Reach 20 replies to win Hackapot.</p></header>
+    <header><TrophyIcon size={28} aria-hidden="true" /><h1>Global scoreboard</h1><p>One prompt. Reach 20 replies to win.</p></header>
     <div className="scoreboard-tools"><span>Top 50 · ties go to the first published</span><button onClick={() => void load()} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button></div>
     {error && <p role="alert">The scoreboard couldn’t load. Try refreshing.</p>}
     {!error && entries?.length === 0 && <p className="scoreboard-empty">No scores yet. <Link href="/challenge">Play the first challenge.</Link></p>}
     {!!entries?.length && <ol className="scoreboard-list" aria-label="Global rankings">{entries.map((entry) => <li key={entry.id}>
-      <span className="score-rank">{entry.rank}</span><span className="score-name">{entry.name}{entry.won && <small>Hackapot winner</small>}</span><span className="score-value">{entry.score}<span> / 20</span></span>
+      <span className="score-rank">{entry.rank}</span><span className="score-name">{entry.name}{entry.won && <small>Winner</small>}</span><span className="score-value">{entry.score}<span> / 20</span></span>
     </li>)}</ol>}
     <p className="scoreboard-footnote">Server-verified scores. Names are nicknames, not verified identities.</p>
   </main>

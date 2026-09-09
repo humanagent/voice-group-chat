@@ -23,7 +23,10 @@ export function useRoomViewport() {
       // safe areas. Some iOS versions report a shorter visualViewport even after
       // dismissal; persisting that number leaves a blank strip below the room.
       root.style.setProperty("--room-viewport-height", keyboard ? `${height}px` : "100dvh")
-      root.style.setProperty("--room-viewport-top", keyboard ? `${Math.max(0, viewport?.offsetTop ?? 0)}px` : "0px")
+      // Counter the browser's native focus pan, including a scroll event that
+      // arrives before the keyboard resize. This keeps the header/orbs at the
+      // same SCREEN position; only the transcript gives up vertical space.
+      root.style.setProperty("--room-viewport-top", editing ? `${Math.max(0, viewport?.offsetTop ?? 0)}px` : "0px")
       root.dataset.keyboard = String(keyboard)
       root.dataset.compact = String(height < 620)
     }

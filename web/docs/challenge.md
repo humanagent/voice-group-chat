@@ -1,11 +1,11 @@
-# Hackapot: one prompt, 20 replies
+# Conversation challenge: one prompt, 20 replies
 
 Open `/challenge`, or the trophy in the room header. One prompt starts a fresh
 attempt. Each nonempty agent reply adds one point, including replies to the
 original prompt and subsequent agent-to-agent replies. Introductions, silence,
 errors and the user's prompt never count. Three replies mean three points.
 
-The 20th reply wins Hackapot and stops further delivery. Otherwise the attempt
+The 20th reply wins the challenge and stops further delivery. Otherwise the attempt
 ends when everyone goes quiet, the user stops/leaves, a failure prevents it
 from continuing, or four minutes elapse. The deadline includes introductions.
 There is no second prompt in an attempt. A retry starts from zero in fresh
@@ -15,7 +15,7 @@ At the end, the player can enter a public nickname and choose **Publish score**,
 or skip publication and play again. Scores below 20 can also be published.
 `/challenge/scoreboard` shows the top 50 attempts, score descending; ties go to
 the first publication. Each attempt appears at most once. Names may repeat:
-they are nicknames, not accounts or verified identities. Hackapot is a win
+they are nicknames, not accounts or verified identities. Winning is a game
 state, not a monetary payout or prize-redemption integration.
 
 ## Trust boundary

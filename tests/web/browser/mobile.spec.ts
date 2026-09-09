@@ -54,10 +54,15 @@ for (const viewport of [
 test("keyboard-sized viewport keeps notices and a long draft reachable", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await openRoom(page)
+  const stageBefore = await page.locator(".stage-wrap").boundingBox()
+  const headerBefore = await page.locator(".room-header").boundingBox()
   const box = page.getByRole("textbox", { name: "Message the room" })
   await box.fill("A long draft.\n".repeat(20))
   await box.focus()
   await page.setViewportSize({ width: 390, height: 340 })
+  await expect(page.locator(".stage-wrap")).toBeInViewport({ ratio: 1 })
+  expect(await page.locator(".stage-wrap").boundingBox()).toEqual(stageBefore)
+  expect(await page.locator(".room-header").boundingBox()).toEqual(headerBefore)
   await page.evaluate(() => {
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false })
     dispatchEvent(new Event("offline"))

@@ -257,14 +257,23 @@ button:disabled { opacity: .35; }
 @media (max-width: 640px) {
   .room-page { padding: 0; }
   .room-shell { border: 0; border-radius: 0; width: 100%; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
-  .room-header { padding: 22px 20px 0; gap: 8px; }.room-actions { gap: 0; }
-  .stage-wrap { padding: 8px 14px 13px; }.agent-stage { gap: 20px; padding: 12px 0; }.agent { width: 80px; }.agent-orbit { width: 72px; height: 72px; margin-bottom: 12px; }.agent-name { font-size: 12px; }.agent-caption { font-size: 9px; }
+  .room-header { min-height: 64px; padding: 14px 20px 0; gap: 8px; }.room-actions { gap: 0; }
+  /* A persistent, compact mobile stage leaves room for the keyboard without
+     hiding or moving the agents when an input receives focus. */
+  .stage-wrap { padding: 4px 14px 8px; }.agent-stage { gap: 20px; padding: 4px 0; }.agent { width: 80px; }.agent-orbit { width: 56px; height: 56px; margin-bottom: 6px; }.agent-name { font-size: 12px; }.agent-caption { height: 16px; margin-top: 2px; font-size: 9px; }
   .transcript-content { padding: 18px 18px 14px; gap: 14px; }.message-bubble { font-size: 14px; padding: 11px 14px; }.message-body { max-width: 86%; }.message-meta { font-size: 11px; }.message-avatar { width: 24px; height: 24px; }
   .room-empty { padding: 12px 0; }
   .composer-wrap { padding: 10px 12px max(10px, env(safe-area-inset-bottom)); }.composer { padding-left: 14px; border-radius: 18px; }.composer textarea { font-size: 16px; }.composer-hint { font-size: 8px; margin-top: 8px; }.room-notice { margin-left: 14px; margin-right: 14px; padding: 6px 8px 6px 12px; }
 }
-/* Landscape phones and keyboard-height windows need the same compact layout. */
-@media (max-height: 620px) { .stage-wrap { display: none; }.room-header { padding-top: 12px; padding-bottom: 8px; }.composer-hint { display: none; } }
+/* Short landscape windows keep a smaller stage too; input focus on portrait
+   phones does not change either the header or stage geometry. */
+@media (max-height: 620px) and (min-width: 641px) {
+  .room-header { min-height: 60px; padding-top: 8px; }
+  .stage-wrap { padding: 0 28px 6px; }.agent-stage { padding: 2px 0; }
+  .agent-orbit { width: 44px; height: 44px; margin-bottom: 2px; }
+  .agent-caption { height: 14px; margin-top: 0; }
+}
+@media (max-height: 620px) { .composer-hint { display: none; } }
 @media (max-height: 500px) and (pointer: coarse) {
   .room-page { padding: 0; }
   .room-shell { width: 100%; border: 0; border-radius: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
@@ -276,10 +285,8 @@ button:disabled { opacity: .35; }
 }
 html[data-paused="true"] *, html[data-paused="true"] *::before, html[data-paused="true"] *::after { animation-play-state: paused !important; }
 .agent-sphere { transition: scale 650ms cubic-bezier(.22, 1, .36, 1); }
-html[data-compact="true"] .stage-wrap { display: none; }
-html[data-compact="true"] .room-header { padding-top: 12px; padding-bottom: 8px; }
 html[data-compact="true"] .composer-hint { display: none; }
-html[data-compact="true"] .composer textarea { max-height: min(144px, calc(var(--room-viewport-height, 100dvh) * .25)); }
+html[data-compact="true"] .composer textarea { max-height: 44px; }
 html[data-keyboard="true"] .composer-wrap { padding-bottom: 10px; }
 .perf-toggle { top: max(90px, calc(var(--room-viewport-height, 100dvh) - var(--room-composer-height, 90px) - 60px)); bottom: auto; right: max(18px, env(safe-area-inset-right)); }
 .perf-panel { max-height: calc(var(--room-viewport-height, 100dvh) - 36px); top: 18px; bottom: auto; }
@@ -287,11 +294,11 @@ html[data-keyboard="true"] .composer-wrap { padding-bottom: 10px; }
 .room-conversation > button { min-width: 44px; min-height: 44px; }
 
 /* Challenge controls share the room's spacing, touch targets and motion rules. */
-.challenge-meter { flex: 0 0 auto; padding: 12px 32px 0; }
+.challenge-meter { flex: 0 0 auto; padding: 4px 32px 0; }
 .challenge-meter > div { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: #bcb5c9; }
-.challenge-meter output { font-size: 24px; font-weight: 600; color: #eee8fa; font-variant-numeric: tabular-nums; }
+.challenge-meter output { font-size: 18px; font-weight: 600; color: #eee8fa; font-variant-numeric: tabular-nums; }
 .challenge-meter output span { font-size: 13px; color: #bcb5c9; font-weight: 400; }
-.challenge-meter progress { display: block; width: 100%; height: 4px; margin-top: 8px; border: 0; border-radius: 8px; overflow: hidden; background: #ffffff12; color: #d8cafa; accent-color: #d8cafa; }
+.challenge-meter progress { display: block; width: 100%; height: 4px; margin-top: 4px; border: 0; border-radius: 8px; overflow: hidden; background: #ffffff12; color: #d8cafa; accent-color: #d8cafa; }
 .challenge-meter progress::-webkit-progress-bar { background: #ffffff12; }
 .challenge-meter progress::-webkit-progress-value { background: #d8cafa; transition: width 220ms ease; }
 .challenge-meter progress::-moz-progress-bar { background: #d8cafa; }
@@ -330,5 +337,4 @@ html[data-keyboard="true"] .composer-wrap { padding-bottom: 10px; }
 .score-value { flex-shrink: 0; font-size: 20px; font-variant-numeric: tabular-nums; }
 .score-value span { font-size: 12px; color: #bcb5c9; }
 .scoreboard-footnote { color: #bcb5c9; font-size: 12px; margin-top: 24px; line-height: 1.6; }
-@media (max-width: 640px) { .challenge-meter { padding: 10px 20px 0; }.challenge-result { padding: 18px; } }
-@media (max-height: 620px) { .challenge-meter { padding-top: 0; }.challenge-meter output { font-size: 18px; }.challenge-meter progress { margin-top: 4px; } }
+@media (max-width: 640px) { .challenge-meter { padding: 4px 20px 0; }.challenge-result { padding: 18px; } }

@@ -26,7 +26,7 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
     if (!text.trim()) return
     const previous = getDraft().text
     saveDraft(previous ? `${previous}\n${text}` : text)
-    requestAnimationFrame(() => box.current?.focus())
+    requestAnimationFrame(() => box.current?.focus({ preventScroll: true }))
   }
   useImperativeHandle(handle, () => ({ restore }), [])
   const dictation = useDictation({
@@ -56,7 +56,7 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
     saveDraft(value)
   }
   function send() {
-    if (submit(draft.trim())) { change(""); box.current?.focus() }
+    if (submit(draft.trim())) { change(""); box.current?.focus({ preventScroll: true }) }
   }
   return (
     <footer className="composer-wrap">
@@ -70,7 +70,7 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
                 follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 24
               }}><p>{dictation.text || (dictation.status === "connecting" ? "Connecting microphone…" : "Listening…")}</p></div>
             </div>
-            <button type="button" className="icon-button" onClick={() => { dictation.cancel(); requestAnimationFrame(() => box.current?.focus()) }} aria-label="Discard recording"><XIcon size={18} /></button>
+            <button type="button" className="icon-button" onClick={() => { dictation.cancel(); requestAnimationFrame(() => box.current?.focus({ preventScroll: true })) }} aria-label="Discard recording"><XIcon size={18} /></button>
             <button type="button" className="send-button" onClick={dictation.finish} disabled={dictation.status !== "listening"} aria-label={dictation.status === "finishing" ? "Finishing transcription" : "Send recording"}>{dictation.status === "finishing" ? <LoaderCircleIcon size={20} className="animate-spin" /> : <ArrowUpIcon size={20} />}</button>
           </>
         ) : (
