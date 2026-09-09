@@ -6,23 +6,24 @@ import { TTS_MODEL } from "@/lib/elevenlabs"
 import { sayable, VOICES, voiceFor } from "@/lib/voices"
 
 /**
- * The runtime's list, read out of the Python rather than trusted to match.
+ * The file both languages read.
  *
- * Both sides of this project speak now — the browser streams a reply, the
- * terminal client synthesises one — and they decide the voice independently
- * from the same list. An agent that sounded like two different people
- * depending on where you were watching would be worse than one that stayed
- * silent, and nothing else would catch that drift.
+ * This used to parse `src/policy/voice.py` from TypeScript, because each side
+ * held its own copy of the list and the only thing standing between them and
+ * drift was a test that noticed afterwards. Now there is one file, and what is
+ * worth testing is that this side reads it correctly.
  */
-function runtimeVoices(): string[] {
-  const py = readFileSync(join(__dirname, "..", "..", "src", "policy", "voice.py"), "utf8")
-  const block = py.slice(py.indexOf("VOICES = ["), py.indexOf("]", py.indexOf("VOICES = [")))
-  return [...block.matchAll(/"([A-Za-z0-9]{20})"/g)].map((m) => m[1])
+function shared(): { model: string; voices: { id: string }[] } {
+  return JSON.parse(readFileSync(join(__dirname, "..", "..", "speech.json"), "utf8"))
 }
 
 describe("an agent's voice", () => {
-  it("is the same list the runtime uses, in the same order", () => {
-    expect(VOICES).toEqual(runtimeVoices())
+  it("is the list in speech.json, in the order that file gives", () => {
+    expect(VOICES).toEqual(shared().voices.map((voice) => voice.id))
+  })
+
+  it("uses the model that file names, so the browser cannot synthesise with another", () => {
+    expect(TTS_MODEL).toBe(shared().model)
   })
 
   it("gives every agent in a group a different one", () => {
@@ -69,19 +70,15 @@ describe("the turn does not wait to be able to speak", () => {
   })
 })
 
-describe("the model that speaks", () => {
-  it("is the one the runtime names, not a second copy of it", () => {
-    // `TTS_MODEL` is written in `src/defaults.py` and again in TypeScript,
-    // because a Next.js route cannot read a Python module. The runtime picks
-    // it for a measured reason — flash is the one built for live conversation
-    // — and a browser quietly synthesising with something else would be slower
-    // or more expensive for reasons nobody could see.
-    const py = readFileSync(
-      join(__dirname, "..", "..", "src", "defaults.py"),
-      "utf8",
-    )
-    const named = /^TTS_MODEL = "([^"]+)"/m.exec(py)?.[1]
-    expect(named).toBeTruthy()
-    expect(TTS_MODEL).toBe(named)
+describe("the file itself", () => {
+  it("names a model and enough distinct voices for a full cast", () => {
+    // Ten personas, so ten voices: a room can deal every one of them a
+    // different person and still give each a voice of its own. A duplicate in
+    // here means two of any three agents share a voice however they are
+    // assigned, which happened once and the hashing took the blame for it.
+    const { model, voices } = shared()
+    expect(model).toBeTruthy()
+    expect(voices).toHaveLength(10)
+    expect(new Set(voices.map((voice) => voice.id)).size).toBe(10)
   })
 })

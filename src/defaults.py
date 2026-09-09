@@ -19,6 +19,20 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from src.speech import TTS_MODEL
+
+__all__ = [
+    "CONFIG_TEMPLATE",
+    "DEFAULT_MODEL",
+    "FIRST_GROUP_PORT",
+    "GATEWAY_PORT",
+    "TTS_MODEL",
+    "align",
+    "config_for",
+    "model_in",
+    "tts_model_in",
+]
+
 # The model. One line, and it is the only one.
 #
 # It used to be the model a NEW home was created with, and every home kept
@@ -32,22 +46,13 @@ from pathlib import Path
 # change can be read in a diff.
 DEFAULT_MODEL = "openai/gpt-5.6-sol"
 
-# What speaks the replies. Measured on this account, same voice and sentence:
+# What speaks the replies, and the voices that do it, both from `speech.json`
+# at the repo root. Re-exported here because this module is where the Python
+# asks "which model is this thing running?" — but the answer is written in one
+# file the web app reads too, since a browser that quietly synthesised with a
+# different model would be slower or dearer for reasons nobody could see.
 #
-#     eleven_flash_v2_5        0.7s
-#     eleven_multilingual_v2   1.2s
-#     eleven_v3                2.7s
-#
-# `eleven_v3` is the most expressive of the three and a chat is not paying two
-# seconds a line for it. Flash is the one built for live conversation. The group
-# had no `tts` block at all, so it fell to the library default — multilingual_v2
-# — which nobody had picked.
-#
-# The account's own premade voices are all English natives, which is what these
-# agents speak, so the model is not carrying an accent it should not. Every voice
-# in the shared library, native or not, answers a free account with
-# `paid_plan_required`.
-TTS_MODEL = "eleven_flash_v2_5"
+# That file carries the measurements behind the choice.
 
 # The single-agent runtime. Its port is also its identity: every agent runs the
 # same binary, so the port is the only thing that tells them apart.

@@ -30,17 +30,14 @@ export function key(): string {
 }
 
 /**
- * What speaks the replies.
+ * What speaks the replies, re-exported from `speech.json` at the repo root.
  *
- * A copy of `TTS_MODEL` in `src/defaults.py`, because a Next.js route cannot
- * read a Python module. The runtime picks it for a measured reason — flash is
- * the one built for live conversation — and a browser quietly synthesising with
- * something else would be slower or dearer for reasons nobody could see.
- *
- * A test reads that file and fails if the two ever drift. See
- * `tests/web/voices.test.ts`.
+ * It was a copy of the Python's constant with a test to catch the two drifting
+ * apart. A browser quietly synthesising with a different model would be slower
+ * or dearer for reasons nobody could see, which is a reason for one file rather
+ * than two that agree today.
  */
-export const TTS_MODEL = "eleven_flash_v2_5"
+export { TTS_MODEL } from "@/lib/speech"
 
 /**
  * The ElevenLabs client, held for as long as the key does not change.

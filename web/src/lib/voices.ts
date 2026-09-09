@@ -1,28 +1,12 @@
+import { VOICES } from "@/lib/speech"
+
 /**
  * Which voice an agent has, decided the same way the runtime decides it.
  *
- * This list is a copy of `VOICES` in `src/policy/voice.py`, in the same order,
- * because both sides of the project now speak: the browser streams a reply and
- * the terminal client synthesises one, and an agent that sounded like two
- * different people depending on where you were watching would be worse than an
- * agent that did not speak at all.
- *
- * A copy, not an import — a Next.js route cannot read a Python module — so a
- * test parses that file and fails if the two ever drift. See
- * `tests/web/voices.test.ts`.
+ * The list lives in `speech.json` at the repo root, which the Python reads too.
+ * It used to be a copy kept honest by a test that parsed `src/policy/voice.py`
+ * from TypeScript, which caught drift but could not prevent it.
  */
-const VOICES = [
-  "cgSgspJ2msm6clMCkdW9", // Jessica — female, american, young, conversational
-  "onwK4e9ZLuTAKqWW03F9", // Daniel — male, british, formal
-  "XrExE9yKIg1WjnnlVkGX", // Matilda — female, american, knowledgable
-  "IKne3meq5aSn9XLyUdCD", // Charlie — male, australian, energetic
-  "Xb7hH8MSUJpSbSDYk0k2", // Alice — female, british, clear
-  "CwhRBWXzGAHq8TQ4Fs17", // Roger — male, american, laid-back
-  "FGY2WhTYpPnrIDTdsKH5", // Laura — female, american, bright
-  "SAz9YHcvj6GT2YYXdXww", // River — neutral, american, relaxed
-  "pFZP5JQG7iQjIQuC4Bku", // Lily — female, british, velvety
-  "nPczCjzI2devNBz1zQrb", // Brian — male, american, deep
-]
 
 /**
  * A voice for this agent, distinct from the others in the group.

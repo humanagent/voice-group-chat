@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.defaults import TTS_MODEL
+from src.speech import TTS_MODEL, VOICES
 
 if TYPE_CHECKING:
     from elevenlabs.client import ElevenLabs
@@ -72,46 +72,9 @@ def why_not() -> str:
 # being narrated, not a room — and the point of a group is telling who is
 # talking without reading the name first.
 #
-# Ten, because there are ten personas: a room can deal every one of them a
-# different person and still give each of those people a voice of their own.
-#
-# Chosen on three things, in this order.
-#
-# How modern the voice is, which the account will tell you if you ask:
-# `high_quality_base_model_ids` is how many of the current model families a
-# voice is actually supported on. Most sit at 7 or 8. Adam, who led this list
-# for months, sits at ZERO — an original 2023 voice, carried for compatibility
-# and rendered by nothing current, which is exactly why it sounded flat next to
-# the others. Sarah sits at 3. Neither is here now; nothing below is under 7.
-#
-# What the voice is FOR. These are people talking in a room, so conversational
-# and informative reads first, and the character-animation and advertisement
-# voices — Harry, Callum, Bill — are left out however good they are. A room does
-# not need a narrator.
-#
-# And how unlike its neighbour each one is. Assignment below goes by position in
-# the sorted group, so an adjacent pair is the pair that has to be told apart:
-# this alternates woman, man, woman, man the whole way down, and spreads
-# american, british and australian across it.
-#
-# All premade, and each verified to synthesise on this account. Every voice in
-# the shared library — including every native non-English one — answers a free
-# account with `paid_plan_required`, so a list drawn from there would be
-# silence. The language is the model's job in any case: `eleven_flash_v2_5`
-# speaks 32 of them, so these read Spanish perfectly well. What a free account
-# cannot have is a native ACCENT, not a language.
-VOICES = [
-    "cgSgspJ2msm6clMCkdW9",  # Jessica — female, american, young, conversational
-    "onwK4e9ZLuTAKqWW03F9",  # Daniel — male, british, formal
-    "XrExE9yKIg1WjnnlVkGX",  # Matilda — female, american, knowledgable
-    "IKne3meq5aSn9XLyUdCD",  # Charlie — male, australian, energetic
-    "Xb7hH8MSUJpSbSDYk0k2",  # Alice — female, british, clear
-    "CwhRBWXzGAHq8TQ4Fs17",  # Roger — male, american, laid-back
-    "FGY2WhTYpPnrIDTdsKH5",  # Laura — female, american, bright
-    "SAz9YHcvj6GT2YYXdXww",  # River — neutral, american, relaxed
-    "pFZP5JQG7iQjIQuC4Bku",  # Lily — female, british, velvety
-    "nPczCjzI2devNBz1zQrb",  # Brian — male, american, deep
-]
+# The list itself lives in `speech.json` at the repo root, with the reasoning
+# for every entry, because the web app needs exactly the same one and a second
+# copy is a second thing to be wrong.
 
 
 def voice_for(name: str, among: list[str] | None = None) -> str:
