@@ -22,6 +22,6 @@ export async function POST(request: Request) {
     const store = challengeStore()
     const run = store.publish(body.runId, who, name)
     console.info(JSON.stringify({ event: "challenge.published", version: 1, score: run.score }))
-    return Response.json({ run, entries: store.scoreboard() }, { headers: privateHeaders })
+    return Response.json({ run, standing: store.standing(run.id), entries: store.scoreboard() }, { headers: privateHeaders })
   } catch (error) { return challengeFailure(error) }
 }

@@ -15,7 +15,12 @@ export const maxDuration = 300
 export async function GET() {
   try {
     const who = await owner()
-    return Response.json({ run: who ? challengeStore().latest(who) : null }, { headers: privateHeaders })
+    const store = challengeStore()
+    const run = who ? store.latest(who) : null
+    // A published run comes back with its place on the board. A reload after a
+    // win should show the same "#4 of 61" the round itself ended on, rather
+    // than a score with nowhere to put it.
+    return Response.json({ run, standing: run?.submitted ? store.standing(run.id) : null }, { headers: privateHeaders })
   } catch (error) { return challengeFailure(error) }
 }
 

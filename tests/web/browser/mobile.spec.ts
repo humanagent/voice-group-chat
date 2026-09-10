@@ -27,11 +27,18 @@ async function showLatest(page: Page) {
 for (const score of [2, 20]) {
   test(`centered trophy result ${score}/20`, async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.route("**/api/challenge", (route) => route.fulfill({ json: { run: { id: "saved-round", score, target: 20, status: score === 20 ? "won" : "quiet", submitted: false } } }))
+    const run = { id: "3f1a58e6-1c94-4f5e-9f0f-5a2d9d3b7c11", score, target: 20, status: score === 20 ? "won" : "quiet", submitted: false }
+    await page.route("**/api/challenge", (route) => route.fulfill({ json: { run, standing: null } }))
+    // The saved result publishes itself and settles on its place: that is the
+    // dialog people actually see, so that is the one measured here.
+    await page.route("**/api/challenge/scoreboard", (route) => route.request().method() === "POST"
+      ? route.fulfill({ json: { run: { ...run, submitted: true }, standing: { rank: 3, total: 48 }, entries: [] } })
+      : route.fulfill({ json: { entries: [] } }))
     await openRoom(page)
     const modal = page.getByRole("dialog")
     await expect(modal).toBeVisible()
     await expect(page.getByLabel(`${score} of 20 replies`)).toHaveText(`${score}/20`)
+    await expect(modal).toContainText("#3 of 48 on the board")
     const rect = (await modal.boundingBox())!
     expect(rect.x + rect.width / 2).toBeCloseTo(195, 0)
     expect(rect.y + rect.height / 2).toBeCloseTo(422, 0)

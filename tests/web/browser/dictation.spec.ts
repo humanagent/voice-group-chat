@@ -24,8 +24,14 @@ async function recording(page: Page, options: { finalize?: boolean; tokenFailure
     await page.route("**/api/challenge", (route) => {
       if (route.request().method() === "GET") return route.fulfill({ json: { run } })
       sent.push(route.request().postDataJSON().message)
-      run = { id: "voice-round", score: 2, target: 20, status: "quiet", submitted: false }
+      run = { id: "9c2e4b70-58d6-4a1c-9a7e-2f3b5d8c6014", score: 2, target: 20, status: "quiet", submitted: false }
       return route.fulfill({ contentType: "text/event-stream", body: [{ type: "challenge", run }, said("Anna", "First reply"), said("Pepe", "Second reply"), { type: "done" }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") })
+    })
+    // The round ends by publishing itself: the name was given before it started.
+    await page.route("**/api/challenge/scoreboard", (route) => {
+      if (route.request().method() !== "POST") return route.fulfill({ json: { entries: [] } })
+      run = { ...run!, submitted: true }
+      return route.fulfill({ json: { run, standing: { rank: 9, total: 12 }, entries: [] } })
     })
   }
   await page.route("**/api/speak?*", (route) => route.fulfill({ status: 503, json: { error: "Mocked" } }))
@@ -170,8 +176,9 @@ test("Challenge Play closes the intro and uses the existing microphone before th
   expect(session.commits()).toBe(1)
   await expect(page.getByRole("dialog", { name: "Round finished" })).toBeVisible()
   await expect(page.getByLabel("2 of 20 replies")).toHaveText("2/20")
-  // The room is named, so the result has nothing to ask before publishing.
-  await expect(page.getByRole("button", { name: "Publish score" })).toBeVisible()
+  // The room is named, so the result publishes itself and answers with a place.
+  await expect(page.getByRole("dialog")).toContainText("#9 of 12 on the board")
+  await expect(page.getByRole("button", { name: "Publish score" })).toHaveCount(0)
   await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["ended"] })
   await page.getByRole("button", { name: "Back to the room", exact: true }).click()
   await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))
