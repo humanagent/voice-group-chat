@@ -17,6 +17,7 @@ all live here.
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 
 from src.speech import TTS_MODEL
@@ -25,6 +26,7 @@ __all__ = [
     "CONFIG_TEMPLATE",
     "DEFAULT_MODEL",
     "FIRST_GROUP_PORT",
+    "gateway_binary",
     "GATEWAY_PORT",
     "TTS_MODEL",
     "align",
@@ -60,6 +62,24 @@ GATEWAY_PORT = 8642
 
 # The group counts up from here, one port per agent.
 FIRST_GROUP_PORT = 8700
+
+
+def gateway_binary() -> str:
+    """The gateway executable.
+
+    `uv sync` puts it in the project's own `.venv`, which is where it is locally
+    and in an image built the same way. A container that installed the project
+    some other way has it on PATH instead, and falling back there costs one
+    lookup and saves an entrypoint that fails on a path it could have found.
+
+    Here rather than in the script that starts agents, because the test that
+    proves a gateway can actually serve has to launch the same thing the
+    container launches, or it proves nothing about the container.
+    """
+    local = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "hermes-groups"
+    if local.exists():
+        return str(local)
+    return shutil.which("hermes-groups") or str(local)
 
 
 CONFIG_TEMPLATE = """# {headline}
