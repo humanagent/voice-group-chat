@@ -419,6 +419,48 @@ them alone.
 A gateway that dies is not restarted; the room reports that agent as failing and
 the other two carry on.
 
+If no gateway comes up at all, `group_up.py` exits non-zero and the entrypoint's
+`set -eu` stops the container there. That is deliberate. It used to carry on to
+`exec next start`, which served a healthy-looking web app in front of three
+agents listening on nothing — the room answered every request except the ones
+that needed an agent. A container that cannot answer should fail to start.
+
+A partial room is loud but not fatal: two of three agents is still a room, and
+crash-looping because one home is corrupt would turn a degraded room into none.
+
+### The gateway that starts and serves nothing
+
+The failure mode worth knowing, because nothing about it goes red on its own.
+
+`api_server` is the only platform this project runs, and upstream builds it with
+aiohttp — while declaring aiohttp only under extras (`messaging`, `slack`,
+`matrix`, …) that this project does not install. So `pyproject.toml` declares it
+directly, no source file here imports it, and it reads as a dependency nobody
+needs.
+
+Remove it and nothing fails. The gateway starts, logs
+
+```
+WARNING gateway.run: API Server: aiohttp not installed
+WARNING gateway.run: No adapter available for api_server
+```
+
+creates no adapter, and listens on nothing. Three healthy processes answering no
+port. The web app comes up fine and every agent reads as unreachable, so it
+presents as a network problem rather than a missing package.
+
+The import that decides it is inside the adapter's constructor, so importing
+every module the gateway boots proves nothing — that check passes with aiohttp
+absent. The only check that means anything is to start a gateway and ask it
+something. `tests/harness/test_gateway_boot.py` does exactly that on a free port
+with a generated key and no provider credentials, and puts the gateway's own log
+in the failure message. It passes in under two seconds and catches this in under
+one.
+
+The shape generalises past aiohttp: anything that leaves the gateway running
+without a platform adapter looks identical from outside, and that test is what
+sees it.
+
 ## Working on it
 
 `main` is protected: no direct pushes, and every change needs a PR whose `test`

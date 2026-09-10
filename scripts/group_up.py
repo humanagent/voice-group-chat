@@ -27,7 +27,7 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from src import defaults  # noqa: E402
-from src.defaults import FIRST_GROUP_PORT  # noqa: E402
+from src.defaults import FIRST_GROUP_PORT, gateway_binary  # noqa: E402
 from src.group import Agent, env_for  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -181,17 +181,9 @@ def provision(agent: Agent, settings: dict[str, str]) -> None:
 
 
 def gateway() -> str:
-    """The gateway binary.
-
-    `uv sync` puts it in the project's own `.venv`, which is where it is locally
-    and in an image built the same way. A container that installed the project
-    some other way has it on PATH instead, and falling back there costs one
-    lookup and saves an entrypoint that fails on a path it could have found.
-    """
-    local = REPO / ".venv" / "bin" / "hermes-groups"
-    if local.exists():
-        return str(local)
-    return shutil.which("hermes-groups") or str(local)
+    """The gateway executable. One definition, in `src/defaults.py`, so the
+    boot test launches exactly what this launches."""
+    return gateway_binary()
 
 
 def start(agent: Agent, settings: dict[str, str]) -> bool:
@@ -240,10 +232,14 @@ def main() -> None:
     ]
 
     print(f"{BOLD}starting {len(agents)} agents{OFF}")
+    up = []
     for agent in agents:
         provision(agent, settings)
-        start(agent, settings)
+        if start(agent, settings):
+            up.append(agent.name)
 
+    # Written whichever way it went: the file is how every client finds the
+    # agents, and a room with two of three still needs it.
     (STATE / "group.json").write_text(
         json.dumps(
             {"agents": [{"name": a.name, "port": a.port, "key": a.key} for a in agents]},
@@ -252,6 +248,27 @@ def main() -> None:
         + "\n"
     )
     print(f"\n{DIM}wrote group.json · talk to them with scripts/group.py{OFF}")
+
+    # Nothing came up, so say so in the exit code.
+    #
+    # This used to return 0 regardless, and the entrypoint runs under `set -eu`,
+    # so a boot where every gateway failed carried straight on to `exec next
+    # start`. The result served a healthy-looking web app in front of three
+    # agents that were not listening on anything — which is how a dependency
+    # that only the gateway needed went missing for a whole deploy without
+    # anything going red. A container that cannot answer should fail to start,
+    # not come up wrong.
+    #
+    # A partial room is loud but not fatal: crash-looping the container because
+    # one home is corrupt would turn a two-agent room into no room at all.
+    if not up:
+        sys.exit(
+            f"{WARN}no agent came up — the room has nothing to talk to. "
+            f"See /tmp/group-*.log{OFF}"
+        )
+    if len(up) < len(agents):
+        missing = ", ".join(a.name for a in agents if a.name not in up)
+        print(f"{WARN}running short: {missing} did not come up{OFF}")
 
 
 def _existing() -> list[Agent]:
