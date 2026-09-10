@@ -328,10 +328,14 @@ button:disabled { opacity: .35; }
 .send-button:disabled { background: #393441; color: #b7a6c6; opacity: .6; }
 .send-button:hover:not(:disabled) { background: #e4d9fb; }
 .composer-hint { display: flex; justify-content: space-between; gap: 12px; min-height: 20px; margin: 10px 4px 0; font-size: 9px; color: #a29bab; line-height: 1.6; }
-.recording-content { display: flex; align-items: flex-end; gap: 12px; min-height: 40px; min-width: 0; flex: 1; }
-.recording-icon { flex-shrink: 0; margin: 11px 0; color: #dbb6fa; }
-.recording-transcript { flex: 1; min-width: 0; max-height: 112px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 9px 2px; }
-.recording-transcript p { overflow-wrap: anywhere; white-space: pre-wrap; font-size: 14px; line-height: 1.55; }
+.recording-content { display: flex; align-items: center; gap: 12px; min-height: 40px; min-width: 0; flex: 1; }
+.recording-icon { flex-shrink: 0; color: #dbb6fa; }
+/* Pills whose height is written each frame from the audio being sent. No
+   transition: the data is the motion, and easing on top of it would show a
+   voice that had already stopped. */
+.waveform { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; height: 26px; overflow: hidden; }
+.waveform i { flex: 0 0 2px; width: 2px; border-radius: 1px; background: #ceb4ec; }
+.recording-note { flex: 1; min-width: 0; font-size: 13px; color: #aaa7b6; }
 .is-recording { border-color: #c3a8e568; }
 .room-notice { margin: 0 24px; padding: 11px 12px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: #bba0d810; border: 1px solid #bba0d820; border-radius: 10px; color: #d5c9e2; font-size: 11px; line-height: 1.6; }
 .room-notices { min-height: 0; max-height: 25%; flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }

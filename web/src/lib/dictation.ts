@@ -21,6 +21,12 @@ type Dependencies = {
 const CONNECT_TIMEOUT_MS = 15_000
 const FINALIZE_TIMEOUT_MS = 6000
 const FLUSH_AUDIO_CHUNKS = 2
+// One loudness reading per this many samples. The SDK sends ~4096 samples at a
+// time, so measuring per chunk would be four bars a second — a bar chart of
+// nothing. At 16kHz this is ~16ms, which is a bar you can watch a voice move.
+const METER_WINDOW = 256
+// About four seconds of readings. The row on screen shows the tail of it.
+const METER_LENGTH = 256
 
 /** One recording owns one microphone and one socket. Late callbacks cannot affect a new recording. */
 export class Dictation {
@@ -30,6 +36,8 @@ export class Dictation {
   private deadline: ReturnType<typeof setTimeout> | undefined
   private committed: string[] = []
   private partial = ""
+  /** Recent loudness, oldest first. Presentation only; never a word of content. */
+  private meter: number[] = []
   private started = 0
   private ready = false
   private audioStarted = false
@@ -45,6 +53,49 @@ export class Dictation {
   constructor(private deps: Dependencies) {}
 
   private metric(name: MetricName, value: number) { this.deps.metric(name, value, this.state.id) }
+  /**
+   * How loud the last few moments were, oldest first.
+   *
+   * Taken from the audio actually being sent, in the one place every chunk
+   * already passes through, rather than from a second microphone tap: a meter
+   * that reads a different stream than the one being transcribed can disagree
+   * with it, and the disagreement is invisible until somebody is talking to a
+   * flat line.
+   */
+  levels(): readonly number[] {
+    return this.meter
+  }
+
+  /**
+   * RMS per window of PCM16, straight off the wire.
+   *
+   * Wrapped in its own try: a meter is decoration, and decoration must never
+   * cost a word. If the payload shape ever changes, the bars go flat and the
+   * transcription carries on.
+   */
+  private measure(data: unknown): void {
+    try {
+      // Both shapes the SDK has used: the documented envelope, and the bare
+      // string. A meter that reads neither goes flat without saying so, which
+      // looks exactly like a microphone that is not hearing you.
+      const encoded = typeof data === "string" ? data : (data as { audioBase64?: unknown }).audioBase64
+      if (typeof encoded !== "string" || !encoded) return
+      const pcm = atob(encoded)
+      const samples = pcm.length >> 1
+      for (let start = 0; start < samples; start += METER_WINDOW) {
+        const end = Math.min(start + METER_WINDOW, samples)
+        let sum = 0
+        for (let i = start; i < end; i++) {
+          // Little-endian, sign-extended from 16 bits.
+          const value = (((pcm.charCodeAt(i * 2 + 1) << 8) | pcm.charCodeAt(i * 2)) << 16) >> 16
+          sum += value * value
+        }
+        this.meter.push(Math.sqrt(sum / (end - start)) / 32768)
+      }
+      if (this.meter.length > METER_LENGTH) this.meter.splice(0, this.meter.length - METER_LENGTH)
+    } catch { /* Decoration never costs a word. */ }
+  }
+
   private publish() { this.deps.changed({ ...this.state }) }
   private activate() {
     if (!this.ready || !this.audioStarted || this.state.status !== "connecting") return
@@ -61,6 +112,7 @@ export class Dictation {
     this.state = { ...idleDictation, status: "connecting", id: crypto.randomUUID() }
     this.committed = []
     this.partial = ""
+    this.meter = []
     this.ready = false
     this.audioStarted = false
     this.firstText = false
@@ -97,6 +149,7 @@ export class Dictation {
           this.fail("dictation_disconnect", "Transcription disconnected. Review the recovered text before sending.")
           return
         }
+        this.measure(data)
         if (!this.audioStarted) {
           this.audioStarted = true
           this.metric("dictation_audio_ready", performance.now() - this.started)

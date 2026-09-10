@@ -3,6 +3,7 @@
 import { useImperativeHandle, useLayoutEffect, useRef, useSyncExternalStore } from "react"
 import { ArrowUpIcon, LoaderCircleIcon, MicIcon, SquareIcon, XIcon } from "lucide-react"
 import { useDictation } from "@/hooks/use-dictation"
+import { Waveform } from "@/components/waveform"
 import { useKeyboardFocus } from "@/hooks/use-keyboard-focus"
 import { getDraft, saveDraft, serverDraft, subscribeDraft } from "@/lib/draft"
 import { worthSending } from "@/lib/listening"
@@ -25,8 +26,6 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
   const { text: draft, saved } = useSyncExternalStore(subscribeDraft, getDraft, serverDraft)
   const box = useRef<HTMLTextAreaElement>(null)
   const keyboardFocus = useKeyboardFocus<HTMLTextAreaElement>()
-  const transcript = useRef<HTMLDivElement>(null)
-  const follow = useRef(true)
   function restore(text: string) {
     if (!text.trim()) return
     const previous = getDraft().text
@@ -47,15 +46,11 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
     if (!speech || !online || !ready || listening) return false
     stop()
     reportError(null)
-    follow.current = true
     dictation.start()
     return true
   }
   // Challenge/Play is a shortcut to this exact microphone, not a second recorder.
   useImperativeHandle(handle, () => ({ restore, startRecording }))
-  useLayoutEffect(() => {
-    if (follow.current && transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight
-  }, [dictation.text])
   useLayoutEffect(() => {
     const node = box.current
     if (!node) return
@@ -82,10 +77,14 @@ export function Composer({ ready, online, busy, speech, submit, stop, handle, re
           <>
             <div className="recording-content">
               <MicIcon size={18} className="recording-icon" aria-hidden="true" />
-              <div className="recording-transcript" ref={transcript} role="region" aria-label="Live transcription" tabIndex={0} onScroll={(event) => {
-                const node = event.currentTarget
-                follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 24
-              }}><p>{dictation.text || (dictation.status === "connecting" ? "Connecting microphone…" : "Listening…")}</p></div>
+              {dictation.status === "listening"
+                ? <Waveform levels={dictation.levels} />
+                : <p className="recording-note">{dictation.status === "connecting" ? "Connecting microphone…" : "Finishing transcription…"}</p>}
+              {/* The words are no longer on screen while they are still being
+                  guessed — a sentence rewriting itself is impossible to talk
+                  over. They stay here for anyone reading the room by name
+                  rather than by sight, to whom a waveform says nothing. */}
+              <p className="sr-only" role="region" aria-label="Live transcription">{dictation.text || (dictation.status === "connecting" ? "Connecting microphone…" : "Listening…")}</p>
             </div>
             <button type="button" className="icon-button" onClick={() => { dictation.cancel(); requestAnimationFrame(() => box.current?.focus({ preventScroll: true })) }} aria-label="Discard recording"><XIcon size={18} /></button>
             <button type="button" className="send-button" onClick={dictation.finish} disabled={dictation.status !== "listening"} aria-label={dictation.status === "finishing" ? "Finishing transcription" : "Send recording"}>{dictation.status === "finishing" ? <LoaderCircleIcon size={20} className="animate-spin" /> : <ArrowUpIcon size={20} />}</button>
