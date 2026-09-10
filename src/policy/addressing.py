@@ -123,7 +123,7 @@ def is_addressed(text: str, name: str, *, is_reply_to_agent: bool = False) -> bo
         return False
 
     tokens = _name_tokens(own)
-    called = _called_at_head(text)
+    called = called_at_head(text)
     if called:
         # The vocative slot is the one place a short name can forgive a typo.
         # Everywhere else a three-letter name has to be exact, or "various
@@ -249,8 +249,14 @@ _CALLED_BEFORE_COMMA = re.compile(
 )
 
 
-def _called_at_head(text: str) -> list[str]:
-    """The names this message opens by calling. Empty when it opens on nobody."""
+def called_at_head(text: str) -> list[str]:
+    """The names this message opens by calling. Empty when it opens on nobody.
+
+    Public because the outbound side asks it too: a reply that opens "Jordan,
+    are you in?" is already addressed, and `questions` needs the same reading of
+    that shape the inbound side uses. One definition of a vocative, both
+    directions.
+    """
     body = _SPEAKER_PREFIX.sub("", text or "", count=1)
     match = _CALLED_AFTER_GREETING.match(body) or _CALLED_BEFORE_COMMA.match(body)
     if not match:

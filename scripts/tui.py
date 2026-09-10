@@ -213,6 +213,10 @@ def render(rec: dict, label: str = "") -> str | None:
             flags.append(f"{WARM}clamped{OFF}")
         if rec.get("exempt"):
             flags.append("exempt")
+        # The guard fired: the reply asked something and named nobody, so the
+        # asker's name went on it.
+        if rec.get("addressed"):
+            flags.append("addressed")
         if rec.get("media"):
             flags.append(f"media={rec['media']}")
         if rec.get("dropped"):

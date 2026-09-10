@@ -4,6 +4,7 @@ import { challengeBody, challengeFailure, owner, privateHeaders } from "@/lib/ch
 import { runChallenge } from "@/lib/challenge-runner"
 import { ChallengeError, challengeStore } from "@/lib/challenge-store"
 import type { RoomEvent } from "@/lib/room-stream"
+import { playerName, UNNAMED } from "@/lib/player"
 import { acquireRoom } from "@/lib/room-round"
 import { ensureRoom } from "@/lib/room-session"
 
@@ -22,11 +23,18 @@ export async function POST(request: Request) {
   let release: (() => void) | null = null
   try {
     const body = await challengeBody(request)
-    if (Object.keys(body).some((key) => key !== "message") || typeof body.message !== "string" || !body.message.trim() || body.message.length > CHALLENGE_PROMPT_LIMIT) {
+    if (Object.keys(body).some((key) => key !== "message" && key !== "speaker") || typeof body.message !== "string" || !body.message.trim() || body.message.length > CHALLENGE_PROMPT_LIMIT) {
       throw new ChallengeError(400, `Send one prompt of up to ${CHALLENGE_PROMPT_LIMIT} characters.`)
     }
     const group = agents()
     if (group.length < 2) throw new ChallengeError(503, "At least two agents must be configured.")
+    // A scored round runs in the same room and lands in the same transcript, so
+    // the player is the same person here as everywhere else — checked the same
+    // way, because it reaches the agents as the same `Name:` prefix.
+    const speaker = body.speaker === undefined || body.speaker === null
+      ? UNNAMED
+      : playerName(body.speaker, group.map((agent) => agent.name))
+    if (!speaker) throw new ChallengeError(400, "That name can’t be used in this room.")
     release = acquireRoom()
     if (!release) throw new ChallengeError(409, "The room is responding. Start counting when it finishes.")
     const secure = new URL(request.url).protocol === "https:" || request.headers.get("x-forwarded-proto") === "https"
@@ -48,7 +56,7 @@ export async function POST(request: Request) {
           if (!closed) { try { controller.enqueue(encoder.encode(": heartbeat\n\n")) } catch { closed = true; cancel.abort() } }
         }, 15_000)
         emit({ type: "challenge", run })
-        void ensureRoom(group, signal).then(() => runChallenge({ run, group, message: body.message as string, store, signal, emit })).catch(() => {
+        void ensureRoom(group, signal, speaker).then(() => runChallenge({ run, group, message: body.message as string, speaker, store, signal, emit })).catch(() => {
           // An initialization/storage failure must not create an unhandled rejection or
           // invent a successful result. The client can recover persisted state.
           try { emit({ type: "challenge", run: store.finish(run.id, signal.aborted ? "stopped" : "failed") }); emit({ type: "done" }) } catch { /* Storage may be unavailable. */ }

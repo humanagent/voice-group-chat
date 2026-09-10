@@ -1,5 +1,6 @@
 import type { Agent } from "./agents"
 import { audienceFor, deliver, ROOM } from "./group"
+import { UNNAMED } from "./player"
 import type { RoomEvent } from "./room-stream"
 import { grantFor } from "./speech-grant"
 
@@ -14,12 +15,14 @@ export function acquireRoom(): (() => void) | null {
 }
 
 /** Ordinary chat and scored chat use the same sessions and delivery loop. */
-export async function runRoomRound({ group, message, signal, emit, remaining = () => Infinity, replied }: {
-  group: Agent[]; message: string; signal: AbortSignal; emit: (event: RoomEvent) => void;
+export async function runRoomRound({ group, message, speaker = UNNAMED, signal, emit, remaining = () => Infinity, replied }: {
+  group: Agent[]; message: string; speaker?: string; signal: AbortSignal; emit: (event: RoomEvent) => void;
   remaining?: () => number; replied?: () => void;
 }) {
   let failed = false
-  let pending = [{ speaker: "you", text: message }]
+  // The person's own name when they have claimed the room, so the agents can
+  // answer them the way they answer each other — by name.
+  let pending = [{ speaker, text: message }]
   while (pending.length && remaining() > 0) {
     const next: typeof pending = []
     for (const line of pending) {

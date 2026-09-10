@@ -11,10 +11,12 @@ const endings = {
   timeout: "Time’s up.", failed: "An agent couldn’t finish.", running: "Challenge in progress…",
 }
 
-export function ChallengeResult({ run, online, published, dismiss, playAgain }: { run: ChallengeRun; online: boolean; published: (run: ChallengeRun) => void; dismiss: () => void; playAgain: () => void }) {
+export function ChallengeResult({ run, player, claim, online, published, dismiss, playAgain }: { run: ChallengeRun; player: string; claim: (name: string) => void; online: boolean; published: (run: ChallengeRun) => void; dismiss: () => void; playAgain: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const keyboardFocus = useKeyboardFocus<HTMLInputElement>()
-  const [name, setName] = useState("")
+  // Named the room, named the scoreboard. Asking again for something the person
+  // has already told us is the kind of form nobody should have to fill twice.
+  const [name, setName] = useState(player)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Establish the native top layer/focus before the form can be interacted with.
@@ -32,6 +34,9 @@ export function ChallengeResult({ run, online, published, dismiss, playAgain }: 
       const response = await fetch("/api/challenge/scoreboard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runId: run.id, name }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Couldn’t publish. Your result is saved; try again.")
+      // Typed here by somebody who never claimed the room: the room is theirs
+      // now too, so this is the last time they type it.
+      if (!player) claim(name)
       published(data.run)
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Couldn’t publish. Try again.") }
     finally { setSaving(false) }
@@ -43,8 +48,12 @@ export function ChallengeResult({ run, online, published, dismiss, playAgain }: 
     <p id="challenge-final-score" className="result-score" aria-label={`${run.score} of ${CHALLENGE_TARGET} replies`}>{run.score}<span>/{CHALLENGE_TARGET}</span></p>
     {run.submitted ? <p role="status">Result published.</p> :
       <form onSubmit={submit} aria-label="Publish result">
-        <label htmlFor="challenger-name">Your name</label>
-        <input {...keyboardFocus} id="challenger-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={24} autoComplete="nickname" required disabled={saving} aria-describedby="score-privacy" />
+        {player
+          ? <p className="result-as">Publishing as <b>{player}</b>. <span>Change it in the room title.</span></p>
+          : <>
+              <label htmlFor="challenger-name">Your name</label>
+              <input {...keyboardFocus} id="challenger-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={24} autoComplete="nickname" required disabled={saving} aria-describedby="score-privacy" />
+            </>}
         <p id="score-privacy">Name and score are public.</p>
         {error && <p role="alert">{error}</p>}
         <button className="confirm-button" disabled={saving || !online || !name.trim()}>{saving ? "Publishing…" : "Publish score"}</button>

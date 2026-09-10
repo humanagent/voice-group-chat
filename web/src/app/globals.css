@@ -222,6 +222,42 @@ button:disabled { opacity: .35; }
 .room-header h1 { font-size: 20px; line-height: 1.25; font-weight: 450; letter-spacing: -.5px; }
 .room-header > div { min-width: 0; }
 .room-status { color: #aaa7b6; font-size: 11px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The title is the field. The input carries the header's own type so editing
+   happens over the title rather than inside a control that appeared on top of
+   it, and the negative margin pays back its padding so the glyphs stay on the
+   header's left edge with the status line beneath them. */
+/* The target is the whole title, tail included, because the title is the field.
+   Tinting only the name put the tint's edge under the apostrophe, and a
+   possessive cannot be moved off its noun to make room for a hover state. */
+/* The tint is drawn by an out-of-flow pseudo-element, and the title itself has
+   no padding at all. Padding plus a negative margin to pay it back is the usual
+   trick and it cost the name 14px twice: the negative margin cancels the padding
+   in the intrinsic width, so the field — the only thing here that can shrink —
+   absorbed the difference and clipped the name. Nothing that only draws should
+   be able to take space away from what it draws around. */
+.room-title { position: relative; display: inline-flex; align-items: baseline; min-width: 0; max-width: 100%; cursor: text; }
+.room-title::before { content: ""; position: absolute; inset: -3px -7px; border-radius: 9px; transition: background-color 140ms ease; }
+.room-title:hover::before { background: #ffffff08; }
+.room-title:focus-within::before { background: #ffffff0e; outline: 1px solid #d0b8ef59; }
+/* Positioned, so the words paint above the surface drawn behind them. */
+.room-name-field, .room-title-tail { position: relative; }
+.room-name-field { flex: 0 1 auto; min-width: 0; }
+/* The name you read is this span: it can end in an ellipsis when the room is
+   too narrow for it, which an input cannot do, and it is what gives the field
+   its width. The input lies exactly over it and takes the ink only while it is
+   being typed in, so the swap has no frame to get wrong. */
+.room-name-shown { display: block; overflow: hidden; white-space: pre; text-overflow: ellipsis; font: inherit; letter-spacing: inherit; }
+.room-name-empty { color: #8d88a0; }
+.room-name { position: absolute; inset: 0; width: 100%; font: inherit; letter-spacing: inherit; color: transparent; background: transparent; border: 0; outline: 0; }
+.room-name::placeholder { color: transparent; }
+.room-title:focus-within .room-name { color: inherit; }
+.room-title:focus-within .room-name::placeholder { color: #8d88a0; }
+.room-title:focus-within .room-name-shown { visibility: hidden; }
+/* The twin is what has a size. It holds the same string in the same type and
+   stays in the flow, so the field is exactly as wide as the name and the input
+   lies over it — no measuring, and no first paint at the wrong width. */
+.room-title-tail { flex: 0 0 auto; color: #aaa7b6; }
+.room-name-problem { color: #d5c9e2; font-size: 11px; margin-top: 6px; }
 .room-actions { display: flex; gap: 2px; }
 .icon-button { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; flex-shrink: 0; color: #aaa7b8; border-radius: 12px; }
 .icon-button:hover:not(:disabled) { background: #ffffff08; color: #f4eefc; }
@@ -302,6 +338,7 @@ button:disabled { opacity: .35; }
 .room-notices:empty { display: none; }
 .room-notice + .room-notice { margin-top: 6px; }.room-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }.room-notice > svg { flex-shrink: 0; }.room-notice button { display: flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; min-height: 44px; min-width: 44px; }
 .confirm-button { background: #d8cafa; color: #2b2239; }
+.result-as { font-size: 12px; }.result-as span { color: #aaa7b6; }
 .perf-panel { position: fixed; bottom: 18px; right: 18px; z-index: 50; width: min(310px, calc(100vw - 36px)); max-height: calc(100dvh - 36px); overflow-y: auto; padding: 20px; border: 1px solid #ad95cd55; border-radius: 18px; background: #191720f5; box-shadow: 0 12px 60px #0008; font-variant-numeric: tabular-nums; }.perf-panel button { padding: 4px; }.perf-toggle { position: fixed; bottom: 18px; right: 18px; z-index: 50; padding: 13px; border-radius: 50%; background: #3a2e49; }
 @keyframes orb-rotate { to { transform: rotate(360deg); } }
 @keyframes orb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }

@@ -19,6 +19,7 @@ from .policy import (
     clock,
     outbound_length,
     participation,
+    questions,
     review_turns,
     turn_gate,
     turn_state,
@@ -166,6 +167,18 @@ def _transform_output(*, response_text: str, **kwargs: object) -> str | None:
         )
         return effects or _SILENT_REPLY
 
+    # A question with nobody's name on it is a question nobody answers. The
+    # prompt asks for the name; this puts it there when the prompt was ignored.
+    # Before the clamp, so the cap still counts every character that ships.
+    named = False
+    if visible:
+        addressed = questions.ensure_addressed(
+            visible, inbound=ctx.inbound, agent_name=_agent_name()
+        )
+        # Read here, not at the trace: the clamp below rewrites `visible` too,
+        # and comparing there would report every trimmed reply as named.
+        named, visible = addressed != visible, addressed
+
     exempt = outbound_length.is_exempt(parsed)
     before_clamp = len(visible)
     if visible and not exempt:
@@ -217,6 +230,7 @@ def _transform_output(*, response_text: str, **kwargs: object) -> str | None:
         before_clamp=before_clamp,
         final_chars=len(transformed),
         clamped=(not exempt) and before_clamp > outbound_length.OUTBOUND_CHAR_LIMIT,
+        addressed=named,
         exempt=exempt,
         media=len(parsed.media),
         links=len(parsed.links),

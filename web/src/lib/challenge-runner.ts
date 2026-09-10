@@ -6,13 +6,13 @@ import type { ChallengeRun } from "./challenge"
 import type { ChallengeStore } from "./challenge-store"
 
 /** Count this prompt's new replies in the existing room. Never erase it. */
-export async function runChallenge({ run, group, message, store, signal, emit }: {
-  run: ChallengeRun; group: Agent[]; message: string; store: ChallengeStore;
+export async function runChallenge({ run, group, message, speaker, store, signal, emit }: {
+  run: ChallengeRun; group: Agent[]; message: string; speaker?: string; store: ChallengeStore;
   signal: AbortSignal; emit: (event: RoomEvent) => void;
 }) {
   const started = performance.now()
   try {
-    const { failed } = await runRoomRound({ group, message, signal, emit,
+    const { failed } = await runRoomRound({ group, message, speaker, signal, emit,
       remaining: () => run.status === "running" ? run.target - run.score : 0,
       replied: () => { run = store.increment(run.id); emit({ type: "challenge", run }) },
     })
