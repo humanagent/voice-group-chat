@@ -75,7 +75,7 @@ async function microphoneState(page: Page) {
   })
 }
 
-test("long dictation stays readable, final words arrive before send, and diagnostics contain no content", async ({ page }, info) => {
+test("a long dictation is captured off screen, final words arrive before send, and diagnostics contain no content", async ({ page }, info) => {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
   const session = await recording(page)
@@ -85,7 +85,12 @@ test("long dictation stays readable, final words arrive before send, and diagnos
   const words = "Una prueba de transcripción suficientemente larga para cubrir varias líneas. ".repeat(8)
   session.event("partial_transcript", words)
   await expect(transcript).toContainText(words.trim())
-  await expect.poll(() => transcript.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop)).toBeLessThan(2)
+  // Captured, and nowhere near the screen: eight lines of guessed words used to
+  // grow the composer while somebody was still talking over them. What is on
+  // screen is the meter, and the region holding the words takes no room in the
+  // layout — it is there for a reader who cannot use a waveform.
+  await expect(page.locator(".waveform")).toBeVisible()
+  expect((await transcript.boundingBox())!.height).toBeLessThan(4)
   await page.screenshot({ path: info.outputPath("live-transcription.png") })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await expect(page.getByRole("button", { name: "Send recording", exact: true })).toBeInViewport()
@@ -165,7 +170,8 @@ test("Challenge Play closes the intro and uses the existing microphone before th
   expect(session.commits()).toBe(1)
   await expect(page.getByRole("dialog", { name: "Round finished" })).toBeVisible()
   await expect(page.getByLabel("2 of 20 replies")).toHaveText("2/20")
-  await expect(page.getByLabel("Your name")).toBeVisible()
+  // The room is named, so the result has nothing to ask before publishing.
+  await expect(page.getByRole("button", { name: "Publish score" })).toBeVisible()
   await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["ended"] })
   await page.getByRole("button", { name: "Back to the room", exact: true }).click()
   await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [] } }))

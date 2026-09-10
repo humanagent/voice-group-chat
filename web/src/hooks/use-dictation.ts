@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react"
 import { CommitStrategy, Scribe } from "@elevenlabs/client"
 import { Dictation, idleDictation, type DictationState } from "@/lib/dictation"
 import { record, sampleFrames } from "@/lib/telemetry"
+
+const EMPTY: readonly number[] = []
 
 export function useDictation({ completed, failed, statusChanged }: {
   completed: (text: string) => void
@@ -54,5 +56,9 @@ export function useDictation({ completed, failed, statusChanged }: {
     return () => { mounted = false; dictation.cancel(); controller.current = null }
   }, [])
 
-  return { ...state, start: () => void controller.current?.start(), finish: () => controller.current?.finish(), cancel: () => controller.current?.cancel() }
+  // Read on a frame loop rather than through state: loudness changes sixty
+  // times a second and none of it is worth a re-render.
+  const levels = useCallback(() => controller.current?.levels() ?? EMPTY, [])
+
+  return { ...state, levels, start: () => void controller.current?.start(), finish: () => controller.current?.finish(), cancel: () => controller.current?.cancel() }
 }

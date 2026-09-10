@@ -33,6 +33,10 @@ export const test = base.extend<{ blockMonitoring: void }>({
     // override this; ordinary tests never see a real browser's saved result.
     await context.route("**/api/challenge", (route) => route.request().method() === "GET" ? route.fulfill({ json: { run: null } }) : route.abort())
     await context.route("**/api/scribe", (route) => route.fulfill({ status: 503, json: { error: "Microphone mocked; voice tests override this route" } }))
+    // A person in this room has a name — the room will not send a line without
+    // one. Tests about the room's ordinary behaviour start where a real visitor
+    // does: named. The spec that covers the gate itself clears this.
+    await context.addInitScript(() => { try { localStorage.setItem("room.player", "Tester") } catch { /* private mode */ } })
     await use()
   }, { auto: true }],
 })

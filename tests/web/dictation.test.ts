@@ -23,6 +23,14 @@ function setup() {
   return { dictation, deps, connection, emit, audio, start }
 }
 
+/** PCM16, little-endian, exactly as the SDK sends it. */
+function pcm(samples: number[]): string {
+  const bytes = new Uint8Array(samples.length * 2)
+  const view = new DataView(bytes.buffer)
+  samples.forEach((value, index) => view.setInt16(index * 2, value, true))
+  return Buffer.from(bytes).toString("base64")
+}
+
 beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] }))
 afterEach(() => vi.useRealTimers())
 
@@ -140,5 +148,46 @@ describe("recording lifecycle", () => {
     expect(deps.metric).toHaveBeenCalledWith("dictation_updates", 2, expect.any(String))
     const metrics = JSON.stringify(deps.metric.mock.calls)
     expect(metrics).not.toMatch(/private|test-only-audio|test-only-token/)
+  })
+})
+
+describe("the loudness meter", () => {
+  it("reads the audio it is already sending, loud from quiet", async () => {
+    // The bars on screen are the only answer to "is it hearing me", so they are
+    // taken from the bytes going to the transcriber rather than from a second
+    // tap that could disagree with it.
+    const { dictation, connection, start } = setup()
+    await start()
+    connection.send({ audioBase64: pcm([...Array(256).fill(16384), ...Array(256).fill(0)]) })
+    const levels = dictation.levels()
+    expect(levels.length).toBe(2)
+    expect(levels[0]).toBeCloseTo(0.5, 2)
+    expect(levels[1]).toBe(0)
+  })
+
+  it("takes the bare string the SDK also sends", async () => {
+    const { dictation, connection, start } = setup()
+    await start()
+    connection.send(pcm(Array(256).fill(8192)) as never)
+    expect(dictation.levels()[0]).toBeCloseTo(0.25, 2)
+  })
+
+  it("never lets a payload it cannot read cost a word", async () => {
+    const { dictation, deps, connection, start } = setup()
+    await start()
+    expect(() => connection.send({ audioBase64: "not base64 at all !!" })).not.toThrow()
+    expect(() => connection.send({ nothing: true } as never)).not.toThrow()
+    expect(dictation.levels()).toEqual([])
+    expect(deps.failed).not.toHaveBeenCalled()
+  })
+
+  it("starts each recording from silence, not from the last one's tail", async () => {
+    const { dictation, connection, start } = setup()
+    await start()
+    connection.send({ audioBase64: pcm(Array(256).fill(16384)) })
+    expect(dictation.levels().length).toBe(1)
+    dictation.cancel()
+    await dictation.start()
+    expect(dictation.levels()).toEqual([])
   })
 })
