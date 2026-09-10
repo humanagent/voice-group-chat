@@ -1,9 +1,10 @@
 import type { Agent } from "./agents"
 import { deliver, openChat, ROOM, roster } from "./group"
 import { briefing, cast } from "./personas"
+import { UNNAMED } from "./player"
 
 /** Initialize only missing shared sessions, never reset existing context. */
-export async function ensureRoom(group: Agent[], signal?: AbortSignal) {
+export async function ensureRoom(group: Agent[], signal?: AbortSignal, player = UNNAMED) {
   const personas = cast(group.map((agent) => agent.name))
   const settled = await Promise.allSettled(group.map(async (agent, index) => {
     const response = await fetch(`${agent.url}/api/sessions/${ROOM}/messages`, {
@@ -17,7 +18,7 @@ export async function ensureRoom(group: Agent[], signal?: AbortSignal) {
     await openChat(agent, ROOM, signal)
     signal?.throwIfAborted()
     const persona = personas[index]
-    const opening = [persona && briefing(persona), roster(group, ["you"], agent.name)].filter(Boolean).join("\n\n")
+    const opening = [persona && briefing(persona), roster(group, [player], agent.name)].filter(Boolean).join("\n\n")
     const reply = await deliver(agent, ROOM, "System", opening, signal)
     if (!reply.spoke && reply.error) throw new Error("Room unavailable")
   }))

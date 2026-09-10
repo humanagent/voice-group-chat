@@ -33,7 +33,16 @@ function Reading({ text, live, where, speaker }: { text: string; live: boolean; 
   return <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text.slice(0, end)}<span className="reading-ahead">{text.slice(end)}</span></p>
 }
 
-export const ChatMessage = memo(function ChatMessage({ line, live, where, restore }: { line: Line; live: boolean; where: () => Position | null; restore: (text: string) => void }) {
+/**
+ * `mine` and `agent` are told to the message, not guessed from the speaker.
+ *
+ * A line used to be the reader's when its speaker was the literal `you`. Once
+ * people have names there are three kinds of line in a room, not two: mine,
+ * another person's, and an agent's — and only the last of those gets an orb, a
+ * voice and the karaoke read-along. Deciding here would mean this component
+ * knowing both who is holding the phone and which of the names are agents.
+ */
+export const ChatMessage = memo(function ChatMessage({ line, mine, agent, live, where, restore }: { line: Line; mine: boolean; agent: boolean; live: boolean; where: () => Position | null; restore: (text: string) => void }) {
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
   useEffect(() => {
@@ -45,19 +54,19 @@ export const ChatMessage = memo(function ChatMessage({ line, live, where, restor
     try { await navigator.clipboard.writeText(line.text); setCopied(true); setCopyFailed(false) }
     catch { setCopyFailed(true) }
   }
-  const you = line.speaker === "you"
+  const who = mine ? "You" : line.speaker
   return (
-    <article className={`chat-message ${you ? "from-you" : "from-agent"} ${line.animate ? "message-enter" : ""}`} aria-label={`${you ? "You" : line.speaker} said`}>
-      {!you && <SoftOrb name={line.speaker} still className="message-avatar" />}
+    <article className={`chat-message ${mine ? "from-you" : "from-agent"} ${line.animate ? "message-enter" : ""}`} aria-label={`${who} said`}>
+      {agent && <SoftOrb name={line.speaker} still className="message-avatar" />}
       <div className="message-body">
-        <div className="message-meta"><span>{you ? "You" : line.speaker}</span>{!you && line.spoken && <span className="spoken-label"><Volume2Icon size={11} />{live ? "Speaking" : "Voice"}</span>}</div>
+        <div className="message-meta"><span>{who}</span>{agent && line.spoken && <span className="spoken-label"><Volume2Icon size={11} />{live ? "Speaking" : "Voice"}</span>}</div>
         <div className="message-bubble" data-speaking={live}>
-          {you ? <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{line.text}</p> : <Reading text={line.text} speaker={line.speaker} live={live} where={where} />}
+          {agent ? <Reading text={line.text} speaker={line.speaker} live={live} where={where} /> : <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{line.text}</p>}
         </div>
         <div className="message-foot">
-          {you && line.delivery && <span role={line.delivery === "uncertain" ? "status" : undefined}>{deliveryLabels[line.delivery]}</span>}
-          {you && (line.delivery === "not-sent" || line.delivery === "uncertain") && <button onClick={() => restore(line.text)} aria-label="Use message as draft"><CornerUpLeftIcon size={12} /> Use as draft</button>}
-          {!you && <button onClick={copy} aria-label={`Copy message from ${line.speaker}`}>{copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}{copied ? "Copied" : copyFailed ? "Couldn’t copy" : "Copy"}</button>}
+          {mine && line.delivery && <span role={line.delivery === "uncertain" ? "status" : undefined}>{deliveryLabels[line.delivery]}</span>}
+          {mine && (line.delivery === "not-sent" || line.delivery === "uncertain") && <button onClick={() => restore(line.text)} aria-label="Use message as draft"><CornerUpLeftIcon size={12} /> Use as draft</button>}
+          {!mine && <button onClick={copy} aria-label={`Copy message from ${line.speaker}`}>{copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}{copied ? "Copied" : copyFailed ? "Couldn’t copy" : "Copy"}</button>}
         </div>
       </div>
     </article>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ArrowDownToLineIcon, ListOrderedIcon, MessagesSquareIcon, RefreshCwIcon, TrophyIcon, WifiOffIcon, XIcon } from "lucide-react"
 import { ChallengeResult, Scoreboard } from "@/components/challenge-score"
+import { RoomTitle } from "@/components/room-title"
 import { ChallengeIntro } from "@/components/challenge-intro"
 import { CHALLENGE_PROMPT_LIMIT, type ChallengeRun } from "@/lib/challenge"
 import { ChatMessage, type Line } from "@/components/chat-message"
@@ -11,6 +12,7 @@ import { Conversation, ConversationContent, ConversationScrollButton } from "@/c
 import { Stage, type Phase } from "@/components/stage"
 import { usePwa } from "@/hooks/use-pwa"
 import { useRoomViewport } from "@/hooks/use-room-viewport"
+import { isMine, playerName, readPlayer, speakerFor, writePlayer } from "@/lib/player"
 import { Voice } from "@/lib/speaking"
 import { roomEvents } from "@/lib/room-stream"
 import { record, sampleFrames } from "@/lib/telemetry"
@@ -34,6 +36,9 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   const [counting, setCounting] = useState(false)
   const [dismissedRun, setDismissedRun] = useState<string | null>(null)
   const [introOpen, setIntroOpen] = useState(false)
+  // Empty until the browser is reachable: the server has no idea who is sitting
+  // here, so rendering a name during SSR would hydrate into a different room.
+  const [player, setPlayer] = useState("")
   const pwa = usePwa()
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const waiting = useRef<Pending[]>([])
@@ -69,6 +74,17 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   }, [])
 
   useEffect(() => { speechEnabled.current = speech }, [speech])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- storage exists only on the client
+  useEffect(() => { setPlayer(readPlayer()) }, [])
+  // Every route to a name lands here — typed into the title, or typed once into
+  // the scoreboard by somebody who never named the room — so the reservation on
+  // agent names is checked in one place rather than at each door.
+  const rename = useCallback((name: string) => {
+    const claimed = name.trim() ? playerName(name, names) : ""
+    if (claimed === null) return
+    setPlayer(claimed)
+    writePlayer(claimed)
+  }, [names])
   const level = useCallback(() => voice.current?.level() ?? 0, [])
   const where = useCallback(() => voice.current?.saying() ?? null, [])
   const restore = useCallback((text: string) => composer.current?.restore(text), [])
@@ -149,7 +165,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
     let accepted = false
     delivery(item.id, "sending")
     try {
-      const response = await fetch(item.counted ? "/api/challenge" : "/api/say", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item.counted ? { message: item.text } : { chat, message: item.text }), signal: controller.signal })
+      const response = await fetch(item.counted ? "/api/challenge" : "/api/say", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item.counted ? { message: item.text, ...(player && { speaker: player }) } : { chat, message: item.text, ...(player && { speaker: player }) }), signal: controller.signal })
       if (!response.ok) {
         const data = await response.json()
         delivery(item.id, "not-sent")
@@ -212,7 +228,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
     if (!chat || opening || !navigator.onLine || !text.trim()) return false
     if (challengeRun?.status === "running" || (counted && (draining.current || text.length > CHALLENGE_PROMPT_LIMIT))) return false
     const item = { id: crypto.randomUUID(), text: text.trim(), counted }
-    setLines((current) => [...current, { ...item, speaker: "you", spoken: false, animate: true, delivery: draining.current ? "queued" : "sending" }])
+    setLines((current) => [...current, { ...item, speaker: speakerFor(player), spoken: false, animate: true, delivery: draining.current ? "queued" : "sending" }])
     setError(null)
     waiting.current.push(item)
     scroller.current?.scrollToBottom({ animation: "instant", wait: true })
@@ -262,7 +278,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
     <main className="room-page">
       <section className="room-shell" data-scoreboard={scoreboard} aria-label="The room" aria-busy={opening}>
         <header className="room-header">
-          <div><h1>{scoreboard ? "Challenge" : "The room"}</h1>{status && <p className="room-status" role="status">{status}</p>}</div>
+          <div>{scoreboard ? <h1>Challenge</h1> : <RoomTitle name={player} agents={names} rename={rename} />}{status && <p className="room-status" role="status">{status}</p>}</div>
           <nav className="room-actions" aria-label="Room modes">
             <button className="icon-button" onClick={showRoom} disabled={listening} aria-label={scoreboard ? "Back to the room" : "Room mode"} aria-current={!scoreboard ? "page" : undefined} title="Room"><MessagesSquareIcon size={18} /></button>
             <button className="icon-button" onClick={openChallenge} disabled={!canChallenge} aria-label="Start challenge" title="Challenge"><TrophyIcon size={18} /></button>
@@ -275,7 +291,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
         <Conversation className="room-conversation" initial="instant" resize="instant" contextRef={scroller as React.Ref<never>} aria-label="Conversation" aria-live="polite" aria-relevant="additions">
           <ConversationContent className="transcript-content">
             {!names.length && <p className="room-empty">No agents configured.</p>}
-            {lines.map((line, i) => <ChatMessage key={line.id} line={line} live={i === reading} where={where} restore={restore} />)}
+            {lines.map((line, i) => <ChatMessage key={line.id} line={line} mine={isMine(line.speaker, player)} agent={names.includes(line.speaker)} live={i === reading} where={where} restore={restore} />)}
             {thinking.length > 0 && <div className="typing-indicator" role="status"><span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>{thinking.join(" & ")} {thinking.length === 1 ? "is" : "are"} thinking</div>}
           </ConversationContent>
           <ConversationScrollButton />
@@ -296,7 +312,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
         <Composer ready={!!chat && !opening && challengeRun?.status !== "running" && (!counting || !busy)} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={counting ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={counting ? "Your one prompt…" : undefined} />
       </section>
       {introOpen && <ChallengeIntro ready={canChallenge} play={startChallenge} dismiss={() => setIntroOpen(false)} />}
-      {!introOpen && !scoreboard && !busy && !listening && challengeRun && challengeRun.status !== "running" && dismissedRun !== challengeRun.id && <ChallengeResult key={challengeRun.id} run={challengeRun} online={pwa.online} published={setChallengeRun} dismiss={() => setDismissedRun(challengeRun.id)} playAgain={openChallenge} />}
+      {!introOpen && !scoreboard && !busy && !listening && challengeRun && challengeRun.status !== "running" && dismissedRun !== challengeRun.id && <ChallengeResult key={challengeRun.id} run={challengeRun} player={player} claim={rename} online={pwa.online} published={setChallengeRun} dismiss={() => setDismissedRun(challengeRun.id)} playAgain={openChallenge} />}
     </main>
   )
 }
