@@ -1,6 +1,16 @@
 import { expect, said, test, type Page, AxeBuilder } from "../../../web/test-support/browser"
 import type { ChallengeRun } from "../../../web/src/lib/challenge"
 
+/**
+ * A browser that has never named the room.
+ *
+ * The shared fixture arrives named, because the room will not send a line
+ * without one and that is how anybody reaches a scored round in the first
+ * place. A saved result can still surface in a browser with no name — played,
+ * then site data cleared — and that is the only way the dialog asks for one.
+ */
+const unnamed = (page: Page) => page.addInitScript(() => { try { localStorage.removeItem("room.player") } catch { /* private mode */ } })
+
 const id = "88b4b3f3-7cbb-4870-afc6-0a11cd2b35e0"
 const completed = (score: number): ChallengeRun => ({ id, score, target: 20, status: score === 20 ? "won" : "quiet", submitted: false })
 function stream(run: ChallengeRun) {
@@ -24,17 +34,18 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   await page.route("**/api/challenge", async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { run } })
     starts++
-    expect(Object.keys(route.request().postDataJSON())).toEqual(["message"])
+    // The scored round carries the player, exactly as the ordinary one does.
+    expect(Object.keys(route.request().postDataJSON()).sort()).toEqual(["message", "speaker"])
     run = completed(score)
     await route.fulfill({ contentType: "text/event-stream", body: stream(run) })
   })
   await page.route("**/api/challenge/scoreboard", async (route) => {
     if (route.request().method() === "POST") {
-      expect(route.request().postDataJSON()).toEqual({ runId: id, name: "Fabri" })
+      expect(route.request().postDataJSON()).toEqual({ runId: id, name: "Tester" })
       published = true
       run = { ...run!, submitted: true }
     }
-    await route.fulfill({ json: { run, entries: published ? [{ id: "public-entry", rank: 1, name: "Fabri", score, won: score === 20 }] : [] } })
+    await route.fulfill({ json: { run, entries: published ? [{ id: "public-entry", rank: 1, name: "Tester", score, won: score === 20 }] : [] } })
   })
   await page.goto("/challenge")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
@@ -48,27 +59,22 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   return { starts: () => starts }
 }
 
-test("20 wins the challenge, asks for a name, and publishes to the global scoreboard", async ({ page, hasTouch }) => {
+test("20 wins the challenge and publishes under the room's name without asking again", async ({ page }) => {
   const round = await setup(page)
   await page.getByRole("textbox", { name: "Message the room" }).fill("Anna, ask everyone a question.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
   await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
   await expect(page.getByRole("dialog")).toBeVisible()
   await expect(page.getByLabel("20 of 20 replies")).toHaveText("20/20")
-  const name = page.getByLabel("Your name")
-  // Exercise the real focus gesture, including the mobile prevent-scroll path.
-  // Verify input delivery before treating a disabled Publish button as a failure.
-  if (hasTouch) await name.tap()
-  else await name.click()
-  await expect(name).toBeFocused()
-  await name.fill("Fabri")
-  await expect(name).toHaveValue("Fabri")
+  // Named in the title, so the form has nothing left to ask.
+  await expect(page.getByRole("dialog")).toContainText("Publishing as Tester")
+  await expect(page.getByLabel("Your name")).toHaveCount(0)
   await page.getByRole("button", { name: "Publish score" }).click()
   await expect(page.getByText("Result published.")).toBeVisible()
   expect(round.starts()).toBe(1)
   await page.getByRole("dialog").getByRole("button", { name: "Back to the room" }).click()
   await page.getByRole("button", { name: "Global scoreboard", exact: true }).click()
-  await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("Fabri")
+  await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("Tester")
   await expect(page.getByText("Winner", { exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/challenge$/)
   await page.getByRole("button", { name: "Play", exact: true }).click()
@@ -100,7 +106,7 @@ test("reload recovers an unpublished result without sending another prompt", asy
   await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
   await page.reload()
   await page.getByRole("button", { name: "View result", exact: true }).click()
-  await expect(page.getByLabel("Your name")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Publish score" })).toBeVisible()
   expect(round.starts()).toBe(0)
 })
 
@@ -121,7 +127,7 @@ test("scoreboard and play share a URL, preserve drafts, and both can exit to the
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   await page.getByRole("button", { name: "Room mode", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "The room", exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Tester’s room", exact: true })).toBeVisible()
   await expect(input).toHaveValue("Keep this draft")
   await expect(page.getByText("Our existing conversation", { exact: true })).toBeAttached()
   await page.getByRole("button", { name: "Global scoreboard" }).click()
@@ -163,6 +169,7 @@ test("Challenge always explains the game; dismissing the intro never records or 
 })
 
 test("a late saved-result response cannot replace an input the player has tapped", async ({ page }) => {
+  await unnamed(page)
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   let release!: () => void
@@ -182,6 +189,7 @@ test("a late saved-result response cannot replace an input the player has tapped
 })
 
 test("result form fits a narrow keyboard-height viewport and is accessible", async ({ page }, info) => {
+  await unnamed(page)
   await page.setViewportSize({ width: 320, height: 568 })
   await setup(page, 20, completed(20))
   const stageBefore = await page.locator(".stage-wrap").boundingBox()
@@ -231,7 +239,7 @@ test("result traps focus, Escape continues the same room, and only Play starts c
   await expect(modal).toBeVisible()
   await expect(page.getByLabel("2 of 20 replies")).toHaveText("2/20")
   await expect(modal.getByRole("button", { name: "Back to the room" })).toBeFocused()
-  await expect(page.getByLabel("Your name")).not.toBeFocused()
+  await expect(page.getByRole("button", { name: "Publish score" })).not.toBeFocused()
   for (let index = 0; index < 6; index++) {
     await page.keyboard.press("Tab")
     expect(await modal.evaluate((node) => node.contains(document.activeElement))).toBe(true)
@@ -242,7 +250,7 @@ test("result traps focus, Escape continues the same room, and only Play starts c
   let ordinary = 0
   await page.route("**/api/say", (route) => {
     ordinary++
-    expect(route.request().postDataJSON()).toEqual({ chat: "room", message: "Keep chatting" })
+    expect(route.request().postDataJSON()).toEqual({ chat: "room", message: "Keep chatting", speaker: "Tester" })
     return route.fulfill({ contentType: "text/event-stream", body: 'data: {"type":"done"}\n\n' })
   })
   await input.fill("Keep chatting")

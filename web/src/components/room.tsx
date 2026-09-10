@@ -226,6 +226,9 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
 
   function submit(text: string, counted = counting) {
     if (!chat || opening || !navigator.onLine || !text.trim()) return false
+    // The send and mic buttons are already off without a name; this is the
+    // path a keyboard Enter takes, and it must refuse the same way.
+    if (!player) return false
     if (challengeRun?.status === "running" || (counted && (draining.current || text.length > CHALLENGE_PROMPT_LIMIT))) return false
     const item = { id: crypto.randomUUID(), text: text.trim(), counted }
     setLines((current) => [...current, { ...item, speaker: speakerFor(player), spoken: false, animate: true, delivery: draining.current ? "queued" : "sending" }])
@@ -243,14 +246,16 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
     : recording === "connecting" ? "Connecting microphone…" : recording === "finishing" ? "Finishing transcription…"
     : listening ? "Recording…" : busy ? "Responding…" : counting ? "Next prompt counts" : null
 
-  const canChallenge = !opening && !!chat && !busy && !listening && pwa.online && challengeRun?.status !== "running"
+  // Nothing reaches the room until it knows who is talking. A line with no name
+  // on it is the thing this whole layer spent the night learning not to send.
+  const canChallenge = !opening && !!chat && !busy && !listening && pwa.online && !!player && challengeRun?.status !== "running"
 
   function openChallenge() {
     if (canChallenge) setIntroOpen(true)
   }
 
   function startChallenge() {
-    if (opening || !chat || busy || listening || !pwa.online || challengeRun?.status === "running") return
+    if (opening || !chat || busy || listening || !pwa.online || !player || challengeRun?.status === "running") return
     setIntroOpen(false)
     voice.current?.stop()
     setChallengeRun(null)
@@ -309,7 +314,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
             {savedAttempt && challengeRun.status !== "running" && <button className="saved-result-button" onClick={() => { setDismissedRun(null); setScoreboard(false) }}>View result</button>}
           </footer>
         )}
-        <Composer ready={!!chat && !opening && challengeRun?.status !== "running" && (!counting || !busy)} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={counting ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={counting ? "Your one prompt…" : undefined} />
+        <Composer ready={!!chat && !opening && !!player && challengeRun?.status !== "running" && (!counting || !busy)} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={counting ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={player ? (counting ? "Your one prompt…" : undefined) : "Add your name above to start"} />
       </section>
       {introOpen && <ChallengeIntro ready={canChallenge} play={startChallenge} dismiss={() => setIntroOpen(false)} />}
       {!introOpen && !scoreboard && !busy && !listening && challengeRun && challengeRun.status !== "running" && dismissedRun !== challengeRun.id && <ChallengeResult key={challengeRun.id} run={challengeRun} player={player} claim={rename} online={pwa.online} published={setChallengeRun} dismiss={() => setDismissedRun(challengeRun.id)} playAgain={openChallenge} />}

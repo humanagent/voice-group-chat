@@ -164,3 +164,29 @@ test("the chat has no automated accessibility violations", async ({ page }) => {
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()
   expect(result.violations).toEqual([])
 })
+
+test("the room will not send a line until it knows who is talking", async ({ page }) => {
+  await mockRoom(page)
+  // The shared fixture arrives named, like a returning visitor. This is the
+  // first one.
+  await page.addInitScript(() => { try { localStorage.removeItem("room.player") } catch { /* private mode */ } })
+  await page.goto("/")
+  await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
+
+  const box = page.getByRole("textbox", { name: "Message the room" })
+  await expect(box).toHaveAttribute("placeholder", "Add your name above to start")
+  await box.fill("Hola a todos")
+  await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Record a voice message" })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Start challenge" })).toBeDisabled()
+  // Enter is the path the buttons do not cover.
+  await box.press("Enter")
+  await expect(page.locator(".chat-message")).toHaveCount(0)
+
+  await page.getByRole("textbox", { name: "Who is playing" }).fill("Alf")
+  await page.getByRole("textbox", { name: "Who is playing" }).press("Enter")
+  await expect(page.getByRole("heading", { name: "Alf’s room" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled()
+  await page.getByRole("button", { name: "Send message" }).click()
+  await expect(page.locator(".chat-message").first()).toContainText("Hola a todos")
+})
