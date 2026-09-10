@@ -45,6 +45,10 @@ describe("challenge HTTP boundary", () => {
     expect(events.filter((event) => event.type === "said")).toHaveLength(3)
     const saved = await publish(request({ runId: run.id, name: "José" }))
     expect(saved.status).toBe(200)
+    // The round ends on a place, not a form: publication answers with it, and a
+    // reload of the saved result answers with the same one.
+    expect((await saved.json()).standing).toEqual({ rank: 1, total: 1 })
+    expect(await (await GET()).json()).toMatchObject({ run: { submitted: true }, standing: { rank: 1, total: 1 } })
     const board = await scores()
     expect(board.headers.get("cache-control")).toBe("no-store")
     const body = await board.text()
@@ -72,7 +76,7 @@ describe("challenge HTTP boundary", () => {
     const run = db.create(challengeOwner(cookie.value))
     db.finish(run.id, "quiet")
     cookie.value = "b".repeat(64)
-    expect(await (await GET()).json()).toEqual({ run: null })
+    expect(await (await GET()).json()).toEqual({ run: null, standing: null })
     expect((await publish(request({ runId: run.id, name: "Fake" }))).status).toBe(404)
     cookie.value = ""
     expect((await publish(request({ runId: run.id, name: "Fake" }))).status).toBe(401)

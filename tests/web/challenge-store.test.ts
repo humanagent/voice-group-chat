@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ChallengeStore, challengeOwner } from "@/lib/challenge-store"
-import { CHALLENGE_DURATION_MS, publicName } from "@/lib/challenge"
+import { CHALLENGE_DURATION_MS, isStanding, publicName } from "@/lib/challenge"
 
 const stores: ChallengeStore[] = []
 function store(path = ":memory:") { const db = new ChallengeStore(path); stores.push(db); return db }
@@ -82,10 +82,48 @@ describe("server-owned challenge scores", () => {
       reopened.close()
     } finally { rmSync(folder, { recursive: true, force: true }) }
   })
+  it("places an attempt in the ranking's own order, below the visible board too", () => {
+    const db = store()
+    const ids: string[] = []
+    // An hour apart, so the hourly admission caps never stand in for the test.
+    const when = (index: number) => 100 + index * 3_700_000
+    for (let index = 0; index < 52; index++) {
+      const run = db.create(`owner-${index}`, when(index))
+      // One point each: the tie-break is publication order and nothing else.
+      db.increment(run.id, when(index))
+      db.finish(run.id, "quiet")
+      db.publish(run.id, `owner-${index}`, `Player ${index}`, when(index))
+      ids.push(run.id)
+    }
+    expect(db.standing(ids[0])).toEqual({ rank: 1, total: 52 })
+    // The board stops at fifty. A place does not.
+    expect(db.scoreboard()).toHaveLength(50)
+    expect(db.standing(ids[51])).toEqual({ rank: 52, total: 52 })
+    const late = db.create("late", when(60))
+    for (let index = 0; index < 5; index++) db.increment(late.id, when(60))
+    db.finish(late.id, "quiet")
+    db.publish(late.id, "late", "Late", when(60))
+    expect(db.standing(late.id)).toEqual({ rank: 1, total: 53 })
+    expect(db.standing(ids[0])).toEqual({ rank: 2, total: 53 })
+    // Nothing to place until it is on the board.
+    expect(db.standing(db.create("nobody", when(70)).id)).toBeNull()
+    expect(db.standing("missing")).toBeNull()
+  })
   it("stores only a hash of the secret browser token", () => {
     expect(challengeOwner("token")).toMatch(/^[a-f0-9]{64}$/)
     expect(challengeOwner("token")).not.toBe(challengeOwner("other"))
   })
+})
+
+describe("a place on the board", () => {
+  it("accepts two whole numbers, the first inside the second", () => {
+    expect(isStanding({ rank: 1, total: 1 })).toBe(true)
+    expect(isStanding({ rank: 7, total: 61 })).toBe(true)
+  })
+  // What reaches the result dialog decides what it can render. Anything else is
+  // a heading with no score under it, so it is not a place at all.
+  it.each([null, {}, { rank: 0, total: 3 }, { rank: 4, total: 3 }, { rank: 1.5, total: 3 }, { rank: "1", total: 3 }, { rank: 1 }])
+    ("rejects %s", (value) => expect(isStanding(value)).toBe(false))
 })
 
 describe("public nicknames", () => {

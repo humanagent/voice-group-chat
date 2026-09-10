@@ -241,7 +241,10 @@ button:disabled { opacity: .35; }
 .room-title:focus-within::before { background: #ffffff0e; outline: 1px solid #d0b8ef59; }
 /* Positioned, so the words paint above the surface drawn behind them. */
 .room-name-field, .room-title-tail { position: relative; }
-.room-name-field { flex: 0 1 auto; min-width: 0; }
+/* Shrinks to fit the header, never to nothing: a title reading "’s room" with
+   the name gone is worse than one ending in an ellipsis. Three characters is
+   the floor, which is what a 320px screen leaves once a round is counting. */
+.room-name-field { flex: 0 1 auto; min-width: 3ch; }
 /* The name you read is this span: it can end in an ellipsis when the room is
    too narrow for it, which an input cannot do, and it is what gives the field
    its width. The input lies exactly over it and takes the ink only while it is
@@ -262,6 +265,14 @@ button:disabled { opacity: .35; }
 .icon-button { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; flex-shrink: 0; color: #aaa7b8; border-radius: 12px; }
 .icon-button:hover:not(:disabled) { background: #ffffff08; color: #f4eefc; }
 .room-actions .icon-button[aria-current="page"] { color: #e4d7fc; background: #d8cafa12; }
+/* Beside the cup, for as long as the attempt lasts. Tabular figures so 9 → 10
+   does not shift the column, and a track that is the same number for the eye:
+   a width, so its rounded caps stay rounded the whole way across. */
+.challenge-meter { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; align-self: center; padding: 0 6px 0 3px; line-height: 1; font-variant-numeric: tabular-nums; }
+.meter-count { color: #8d88a0; font-size: 11px; letter-spacing: -.2px; }
+.meter-count b { margin-right: 1px; color: #eeedf3; font-size: 15px; font-weight: 600; letter-spacing: -.4px; }
+.meter-track { display: block; width: 34px; height: 2px; border-radius: 1px; background: #ffffff14; }
+.meter-track i { display: block; height: 100%; border-radius: inherit; background: #d8cafa; transition: width 420ms cubic-bezier(.22, 1, .36, 1); }
 .stage-wrap { flex: 0 0 auto; padding: 14px 28px 20px; border-bottom: 1px solid #ffffff0a; background: radial-gradient(ellipse at 50% 44%, #9d89b10b, transparent 65%); }
 .agent-stage { display: flex; justify-content: center; gap: clamp(20px, 5vw, 66px); padding: 16px 0 15px; overflow-x: auto; scrollbar-width: thin; }
 .agent { flex-shrink: 0; width: 104px; text-align: center; }
@@ -342,7 +353,6 @@ button:disabled { opacity: .35; }
 .room-notices:empty { display: none; }
 .room-notice + .room-notice { margin-top: 6px; }.room-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }.room-notice > svg { flex-shrink: 0; }.room-notice button { display: flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; min-height: 44px; min-width: 44px; }
 .confirm-button { background: #d8cafa; color: #2b2239; }
-.result-as { font-size: 12px; }.result-as span { color: #aaa7b6; }
 .perf-panel { position: fixed; bottom: 18px; right: 18px; z-index: 50; width: min(310px, calc(100vw - 36px)); max-height: calc(100dvh - 36px); overflow-y: auto; padding: 20px; border: 1px solid #ad95cd55; border-radius: 18px; background: #191720f5; box-shadow: 0 12px 60px #0008; font-variant-numeric: tabular-nums; }.perf-panel button { padding: 4px; }.perf-toggle { position: fixed; bottom: 18px; right: 18px; z-index: 50; padding: 13px; border-radius: 50%; background: #3a2e49; }
 @keyframes orb-rotate { to { transform: rotate(360deg); } }
 @keyframes orb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
@@ -354,8 +364,8 @@ button:disabled { opacity: .35; }
 /* Short, composited entrances only. Never animate keyboard/composer geometry,
    and never delay Play or dismissal waiting for a decorative animation. */
 @media (prefers-reduced-motion: no-preference) {
-  .challenge-result[open] { animation: dialog-appear 180ms cubic-bezier(.16, 1, .3, 1); }
-  .challenge-result[open]::backdrop { animation: surface-appear 180ms ease-out; }
+  .room-dialog[open] { animation: dialog-appear 180ms cubic-bezier(.16, 1, .3, 1); }
+  .room-dialog[open]::backdrop { animation: surface-appear 180ms ease-out; }
   .challenge-lobby, .recording-content { animation: surface-appear 160ms ease-out; }
 }
 @media (hover: none) { .from-agent .message-foot button { opacity: 1; } .message-foot button { min-height: 44px; } }
@@ -365,6 +375,10 @@ button:disabled { opacity: .35; }
   .room-page { padding: 0; background: #17181f; }
   .room-shell { border: 0; border-radius: 0; width: 100%; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   .room-header { min-height: 64px; padding: 14px 20px 0; gap: 8px; }.room-actions { gap: 0; }
+  /* A counting round adds a score to a row that was already full. The name is
+     what has to survive it, so the possessive steps aside for the round rather
+     than the name being cut down to two letters. */
+  .room-shell[data-attempt="true"] .room-title-tail { display: none; }
   /* A persistent, compact mobile stage leaves room for the keyboard without
      hiding or moving the agents when an input receives focus. */
   .stage-wrap { padding: 4px 14px 8px; }.agent-stage { gap: 20px; padding: 4px 0; }.agent { width: 80px; }.agent-orbit { width: 56px; height: 56px; margin-bottom: 6px; }.agent-name { font-size: 12px; }.agent-caption { height: 16px; margin-top: 2px; font-size: 9px; }
@@ -402,24 +416,38 @@ html[data-paused="true"] *, html[data-paused="true"] *::before, html[data-paused
 .room-shell[data-scoreboard="true"] > .room-conversation,
 .room-shell[data-scoreboard="true"] > .composer-wrap:not(.challenge-start) { display: none; }
 html[data-room-standalone="true"] .composer-wrap { padding-bottom: max(8px, calc(var(--room-safe-bottom) - var(--room-keyboard-inset, 0px))); }
-.challenge-result { position: fixed; inset: auto; top: calc(var(--room-viewport-top, 0px) + var(--room-viewport-height, 100dvh) / 2); left: 50%; transform: translate(-50%, -50%); margin: 0; width: min(380px, calc(100vw - 32px)); max-height: calc(var(--room-viewport-height, 100dvh) - 32px); overflow-y: auto; overscroll-behavior: contain; padding: 32px 24px 16px; border: 1px solid #ffffff1a; border-radius: 24px; background: #202129; color: #eeedf3; text-align: center; box-shadow: 0 24px 80px #0006; }
-.challenge-result::backdrop { background: #090a10b8; }
-.challenge-result .result-close { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; }
+.room-dialog { position: fixed; inset: auto; top: calc(var(--room-viewport-top, 0px) + var(--room-viewport-height, 100dvh) / 2); left: 50%; transform: translate(-50%, -50%); margin: 0; width: min(380px, calc(100vw - 32px)); max-height: calc(var(--room-viewport-height, 100dvh) - 32px); overflow-y: auto; overscroll-behavior: contain; padding: 32px 24px 16px; border: 1px solid #ffffff1a; border-radius: 24px; background: #202129; color: #eeedf3; text-align: center; box-shadow: 0 24px 80px #0006; }
+.room-dialog::backdrop { background: #090a10b8; }
+.room-dialog .result-close { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; }
 .result-trophy { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; color: #e5ce99; background: #e5ce9910; }
-.challenge-result h2 { font-size: 18px; font-weight: 500; letter-spacing: -.4px; }
-.challenge-result .result-score { margin: 8px 0 24px; color: #f3edff; font-size: clamp(64px, 16vw, 80px); line-height: 1; font-weight: 600; letter-spacing: -4px; font-variant-numeric: tabular-nums; }
+.room-dialog h2 { font-size: 18px; font-weight: 500; letter-spacing: -.4px; }
+.room-dialog .result-score { margin: 8px 0 24px; color: #f3edff; font-size: clamp(64px, 16vw, 80px); line-height: 1; font-weight: 600; letter-spacing: -4px; font-variant-numeric: tabular-nums; }
 .result-score span { color: #aaa1bd; font-size: .5em; letter-spacing: -2px; font-weight: 400; }
 .challenge-won { border-color: #d8cafa55; background: linear-gradient(140deg, #31283e, #202129); }
-.challenge-result form { text-align: left; }
-.challenge-result label { display: block; margin-bottom: 8px; font-size: 13px; }
-.challenge-result input { display: block; width: 100%; min-height: 48px; border: 1px solid #ffffff35; border-radius: 12px; padding: 10px 12px; font-size: 16px; background: #17181f; color: #eeedf3; }
-.challenge-result p:not(.result-score) { font-size: 12px; line-height: 1.5; color: #bcb5c9; margin-top: 10px; }
-.challenge-result .confirm-button, .challenge-footer button { min-height: 48px; border-radius: 12px; padding: 10px 16px; font-size: 14px; }
-.challenge-result .confirm-button { width: 100%; margin-top: 20px; }
-.challenge-result .result-again { width: 100%; min-height: 48px; margin-top: 8px; color: #c3b9d5; font-size: 13px; }
-.challenge-result button:disabled { opacity: .55; }
+.room-dialog form { text-align: left; }
+.room-dialog label { display: block; margin-bottom: 8px; font-size: 13px; }
+.room-dialog input { display: block; width: 100%; min-height: 48px; border: 1px solid #ffffff35; border-radius: 12px; padding: 10px 12px; font-size: 16px; background: #17181f; color: #eeedf3; }
+.room-dialog input:focus-visible { outline: none; border-color: #c3a8e5; box-shadow: 0 0 0 3px #b6a2d826; }
+.room-dialog p:not(.result-score) { font-size: 12px; line-height: 1.5; color: #bcb5c9; margin-top: 10px; }
+.room-dialog .confirm-button, .challenge-footer button { min-height: 48px; border-radius: 12px; padding: 10px 16px; font-size: 14px; }
+.room-dialog .confirm-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 20px; }
+.room-dialog .result-again { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 48px; margin-top: 8px; color: #c3b9d5; font-size: 13px; }
+.room-dialog .result-again:hover { color: #efe7fb; }
+.room-dialog button:disabled { opacity: .55; }
+/* The place the round took, directly under the score it came from: one line,
+   the number in full ink, the board it belongs to a step quieter. */
+.room-dialog .result-standing { margin-top: 0; font-size: 13px; color: #d3cadf; }
+.challenge-result .result-score { margin-bottom: 16px; }
+.result-standing b { font-size: 19px; font-weight: 600; letter-spacing: -.4px; color: #f3edff; font-variant-numeric: tabular-nums; }
+.result-standing span { color: #aaa7b6; }
+.result-retry { color: #d8cafa; text-decoration: underline; text-underline-offset: 3px; }
 .challenge-intro { padding-bottom: 24px; }
-.challenge-intro .intro-play { display: flex; align-items: center; justify-content: center; gap: 8px; }
+/* The first question the room asks. No trophy above it: this is the room's own
+   door, not the game's. */
+.name-gate { padding-bottom: 22px; }
+.name-gate h2 { font-size: 21px; letter-spacing: -.6px; }
+.name-gate .gate-why { margin: 10px 0 22px; font-size: 13px; line-height: 1.6; }
+.name-gate .confirm-button { margin-top: 16px; }
 .challenge-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .challenge-start { justify-content: center; flex-direction: column; gap: 0; }
 .challenge-start .saved-result-button { background: none; color: #c3b9d5; font-size: 13px; }

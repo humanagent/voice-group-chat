@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { CHALLENGE_DURATION_MS, CHALLENGE_TARGET, type ChallengeRun, type ChallengeStatus, type ScoreEntry } from "./challenge"
+import { CHALLENGE_DURATION_MS, CHALLENGE_TARGET, type ChallengeRun, type ChallengeStatus, type ScoreEntry, type Standing } from "./challenge"
 import { stateRoot } from "./state"
 
 type Row = { id: string; owner: string; score: number; status: ChallengeStatus; entry_id: string | null }
@@ -85,6 +85,25 @@ export class ChallengeStore {
     // Retries cannot create duplicates or rename an already published result.
     this.db.prepare("UPDATE challenge_runs SET entry_id = ?, name = ?, submitted_at = ? WHERE id = ? AND entry_id IS NULL").run(randomUUID(), name, now, id)
     return this.get(id)
+  }
+  /**
+   * Where one published attempt sits on the board.
+   *
+   * Counted rather than looked up in the list, because the list stops at fifty
+   * and a place has to exist below that. The comparison is the ranking's own
+   * ORDER BY turned inside out — score, then who published first, then the
+   * entry id — so the number here and the row in the list can never disagree.
+   * Changing one ordering means changing both in the same edit.
+   */
+  standing(id: string): Standing | null {
+    const row = this.db.prepare("SELECT entry_id, score, submitted_at FROM challenge_runs WHERE id = ?").get(id) as
+      { entry_id: string | null; score: number; submitted_at: number | null } | undefined
+    if (!row?.entry_id) return null
+    const ahead = this.db.prepare(`SELECT COUNT(*) AS n FROM challenge_runs WHERE entry_id IS NOT NULL
+      AND (score > ? OR (score = ? AND (submitted_at < ? OR (submitted_at = ? AND entry_id < ?))))`)
+      .get(row.score, row.score, row.submitted_at, row.submitted_at, row.entry_id)
+    const board = this.db.prepare("SELECT COUNT(*) AS n FROM challenge_runs WHERE entry_id IS NOT NULL").get()
+    return { rank: Number(ahead?.n ?? 0) + 1, total: Number(board?.n ?? 0) }
   }
   scoreboard(): ScoreEntry[] {
     return this.db.prepare(`SELECT entry_id AS id, name, score FROM challenge_runs

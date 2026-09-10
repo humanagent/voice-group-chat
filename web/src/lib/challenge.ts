@@ -12,6 +12,14 @@ export type ChallengeRun = {
   submitted: boolean
 }
 export type ScoreEntry = { id: string; rank: number; name: string; score: number; won: boolean }
+/**
+ * Where a published attempt landed, and how crowded the board is.
+ *
+ * The board itself stops at fifty. A place is the one number a player wants
+ * back the moment a round ends, and it has to exist for the four-hundredth
+ * score as much as for the fourth.
+ */
+export type Standing = { rank: number; total: number }
 
 export function isChallengeRun(value: unknown): value is ChallengeRun {
   if (!value || typeof value !== "object") return false
@@ -20,6 +28,13 @@ export function isChallengeRun(value: unknown): value is ChallengeRun {
     Number.isInteger(run.score) && run.score >= 0 && run.score <= CHALLENGE_TARGET &&
     run.target === CHALLENGE_TARGET && challengeStatuses.includes(run.status) &&
     typeof run.submitted === "boolean" && (run.status !== "won" || run.score === CHALLENGE_TARGET)
+}
+
+/** A place is two whole numbers, the first of them inside the second. */
+export function isStanding(value: unknown): value is Standing {
+  if (!value || typeof value !== "object") return false
+  const standing = value as Standing
+  return Number.isInteger(standing.rank) && Number.isInteger(standing.total) && standing.rank >= 1 && standing.rank <= standing.total
 }
 
 /** Public nicknames, not verified identities. No markup, controls or invisible text. */

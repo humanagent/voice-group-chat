@@ -1,5 +1,19 @@
 # Conversation challenge: one prompt, 20 replies
 
+## The loop
+
+A first visit asks **who is playing** before anything else: one dialog, one
+field, and the reason attached — the agents read the name on every line, so it
+is how they know which question is theirs to answer and what to call the person
+who asked. It says the name is what scores are published under. Answering it is
+the last time the name is asked for anywhere. It can be closed, and closing it
+leaves the room exactly as it was before the dialog existed: the title is still
+the field, and the composer still says what it is waiting for.
+
+From there a round is: trophy → **Play** → one prompt → a result with a place
+on it → **Play again**. The leaderboard is never in the way; it is a button on
+the right of the header, and a quiet second action at the end of a round.
+
 The room header has separate **Challenge** (trophy) and **Leaderboard** actions.
 Challenge always opens a brief rules modal with a **0/20** counter. Nothing is
 recorded yet. **Play** closes that modal and activates the **existing composer
@@ -11,9 +25,20 @@ or recorded prompt still counts. **Room mode** disarms the counter. Capture
 failures recover received words to the same draft, never silently send partial
 words. Visiting a page or leaderboard never starts the microphone.
 
+From the moment Play is pressed, a **live counter sits beside the trophy** in
+the header: the score in full ink, the target a step quieter, and a small track
+that fills toward 20. It appears at 0/20 when the round is armed, follows each
+counted reply, and disappears when the round ends, where the result modal takes
+over the number. On a narrow phone the title drops its possessive for the length
+of the round rather than truncating the player's name.
+
 Each nonempty agent reply adds one point, including replies to the
 original prompt and subsequent agent-to-agent replies. Introductions, silence,
 errors and the user's prompt never count. Three replies mean three points.
+
+**Play again** in the result starts the next round directly — the same gesture
+that opens the microphone, without the rules modal a second time. The rules are
+still shown by the trophy and by the scoreboard's **Play**.
 
 The 20th reply wins the challenge and stops further delivery. Otherwise the attempt
 ends when everyone goes quiet, the user stops/leaves, a failure prevents it
@@ -23,10 +48,19 @@ prompt in an attempt. Retry resets only the score. Closing the result lets the
 user keep chatting normally, with the same history and agents.
 
 At the end, a centered trophy modal shows the large final score (for example
-**2/20**), with no top progress strip. The player can enter a public nickname and choose **Publish score**,
-or skip publication and play again. Scores below 20 can also be published.
+**2/20**), with no top progress strip, and **no form**. The name was given at
+the door, so a score of one or more publishes itself under it and the modal
+answers with the place it took: **#4 of 61 on the board**. Scores below 20 are
+published the same way. A score of **zero is never published** — nobody wants
+their name on a board for a round where nothing was said — and that modal says
+what to try instead. If publication cannot reach the board the score is kept and
+the modal offers **Try again**; if the browser is offline it publishes itself
+when the connection returns. Publication stays idempotent, so a reload after a
+published round adds nothing and asks for nothing.
+
 The scoreboard on `/challenge` shows the top 50 attempts, score descending; ties go to
-the first publication. Each attempt appears at most once. Names may repeat:
+the first publication. A **place is counted, not looked up in that list**, so it
+exists below the fiftieth row. Each attempt appears at most once. Names may repeat:
 they are nicknames, not accounts or verified identities. Winning is a game
 state, not a monetary payout or prize-redemption integration.
 
@@ -60,9 +94,11 @@ one prompt → server-owned attempt → actual agent replies → persisted score
 | `lib/challenge-runner.ts` | Count new replies, persist terminal outcomes and stop exactly at 20. No session deletion. |
 | `lib/challenge-store.ts` | Atomic SQLite updates, attempt ownership, admission limits, ranking and idempotent publication. |
 | `lib/challenge-http.ts` | HttpOnly browser cookie, same-origin writes, bounded JSON and safe errors. |
-| `components/challenge-intro.tsx` | Rules and zero counter only; Play delegates to the existing composer. No capture state. |
+| `components/name-gate.tsx` | The first-visit question, its validation and its refusal message. The only place a name is asked for. |
+| `components/challenge-intro.tsx` | Rules, zero counter and what Play will do; Play delegates to the existing composer. No capture state. |
 | `components/composer.tsx` | One recorder for normal/scored prompts; the intro's Play calls the same start action as the microphone button. |
-| `components/challenge-score.tsx` | Centered accessible result/name dialog and scoreboard. No score calculation. |
+| `components/challenge-score.tsx` | Centered accessible result dialog and scoreboard: publishes the finished score once, shows the returned place. No score calculation. |
+| `components/room.tsx` | The live counter beside the trophy, and the single gate every saved run and place passes before it reaches the screen. |
 
 `POST /api/challenge` accepts **only** `{ "message": "..." }`, at most 2,000
 characters / 8,192 request bytes. It chooses the attempt ID, reuses `room`, stores
@@ -73,7 +109,11 @@ turns past 20. The shared writer lock is released only after every in-flight
 call settles, including cancellation. Each gateway request has a 30-second timeout and the attempt's abort
 signal. Gateway silence is not a failure.
 
-`GET /api/challenge` returns the current browser's latest saved result. A random
+`GET /api/challenge` returns the current browser's latest saved result, with its
+place on the board when it is published. Saved runs and places are validated in
+the browser exactly as streamed events are (`isChallengeRun`, `isStanding`): a
+malformed one becomes no result at all rather than a dialog with an empty
+heading and a score reading "/20". A random
 256-bit HttpOnly, SameSite=Strict cookie owns attempts; only its SHA-256 hash is
 stored in SQLite. HTTPS responses mark the cookie Secure. This is anonymous
 ownership, not login. Clearing cookies loses access to unpublished results.
@@ -82,7 +122,9 @@ as timed out after its deadline; it does not silently restart paid work.
 
 `POST /api/challenge/scoreboard` accepts **only** `{ "runId": "...", "name": "..." }`.
 It requires the same owner and a terminal attempt. The score comes from SQLite,
-not the request. Repeated publication returns the same result without renaming
+not the request, and the response carries the resulting place (`standing`),
+counted with the ranking's own ordering — score, then who published first, then
+the entry id — so the number and the visible list can never disagree. Repeated publication returns the same result without renaming
 or duplicating it. Nicknames are normalized, 1–24 characters, and exclude markup,
 control characters and invisible direction/formatting characters. React renders
 them as text. Public entries use a different random ID from private attempts.
@@ -160,17 +202,22 @@ Run `pnpm --dir web check`. Unit tests use in-memory or temporary SQLite and
 mocked gateways; browser tests mock APIs and never use provider credits.
 
 - `challenge-store.test.ts`: hard cap, ownership, admission, deadlines, duplicate
-  publication, ranking, nickname validation and restart persistence.
+  publication, ranking, places below the visible board, nickname validation and
+  restart persistence.
 - `challenge-runner.test.ts`: three replies → three points, exact 20-reply stop,
   no introduction/silence/error points, parallel listeners, cancellation and preserved shared context.
 - `room-session.test.ts`: existing sessions cost no introductions, only missing
   members initialize, and outages never authorize a reset.
 - `challenge-route.test.ts`: the stream-to-publication boundary, forged scores,
   cross-site requests, byte limits, ownership, cookies and shared-room concurrency.
-- `browser/challenge.spec.ts`: win/name/ranking flow, below-target result, skip,
-  reload recovery, single-prompt guard, accessibility and compact mobile form.
+- `browser/challenge.spec.ts`: the first-visit name dialog and its refusals, the
+  live counter from Play, win/place/ranking flow, below-target result, an
+  unpublished zero, one-press Play again, an unreachable board, reload recovery
+  without a duplicate publication, the single-prompt guard, accessibility and
+  both dialogs on a keyboard-height viewport.
 - `browser/dictation.spec.ts`: rules → Play → existing recorder, committed words
-  submitted once, result modal, cancellation cleanup and recovered-text fallback.
+  submitted once, the self-publishing result modal, cancellation cleanup and
+  recovered-text fallback.
 
 These tests do not claim live model performance, identical personalities across
 visitors, production Railway volume attachment or physical-device validation.

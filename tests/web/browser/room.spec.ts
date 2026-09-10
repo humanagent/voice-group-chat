@@ -173,6 +173,13 @@ test("the room will not send a line until it knows who is talking", async ({ pag
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
 
+  // The first visit asks, and takes no for an answer: behind the dialog is the
+  // room that existed before it, with the same refusal to send an unnamed line.
+  const gate = page.getByRole("dialog", { name: "Who’s playing?" })
+  await expect(gate).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(gate).toHaveCount(0)
+
   const box = page.getByRole("textbox", { name: "Message the room" })
   await expect(box).toHaveAttribute("placeholder", "Add your name above to start")
   await box.fill("Hola a todos")
