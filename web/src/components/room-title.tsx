@@ -78,7 +78,11 @@ export function RoomTitle({ name, agents, rename }: {
             }}
             maxLength={24}
             placeholder="Your name"
-            aria-label="Your name"
+            // Not "Your name", and not a phrase containing it either: the
+            // scoreboard asks for a name too, and anything reaching a control
+            // by its words — a screen reader, voice control, a test — then has
+            // two answers. This says what the field is actually for.
+            aria-label="Who is playing"
             aria-invalid={problem ? true : undefined}
             aria-describedby={problem ? "room-name-problem" : undefined}
             autoComplete="nickname"
