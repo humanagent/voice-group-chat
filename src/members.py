@@ -44,6 +44,13 @@ def speakers_in(text: str) -> list[str]:
 # describing the notation rather than the room.
 UNNAMED = "you"
 
+# The other prefix that is not a person: the room's own machinery. The opening
+# roster reaches every agent as "System: In this chat: …", so `System` shows up
+# in the transcript wearing a speaker's name without ever being somebody in the
+# room. Both clients write it (`scripts/group.py`, `web/src/lib/room-session.ts`)
+# and the web reader already skips it by name.
+MACHINERY = "System"
+
 
 def members(host: str, chat: str, key: str) -> list[str]:
     """Everyone who has spoken in this room, in the order they first did.

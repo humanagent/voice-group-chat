@@ -184,7 +184,14 @@ def roster(agents: list[Agent], people: list[str]) -> str:
         # the reply.
         "Messages reach you prefixed with who said them. Do not write that "
         "prefix yourself and never repeat the question: say only your reply, "
-        "with no name and no colon in front of it."
+        "with no name and no colon in front of it.\n\n"
+        # The room hears every line, so an unaddressed question belongs to
+        # nobody in it. Naming the person is the vocative inside the sentence,
+        # which is not the prefix banned above — said here because an agent
+        # given both rules at once has read the second as forbidding the first.
+        "When your reply asks a question, name who you are asking: \"what did "
+        "you have in mind, Anna?\". That name goes inside the sentence, not in "
+        "front of it."
     )
 
 

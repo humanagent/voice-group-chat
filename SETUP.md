@@ -247,7 +247,7 @@ at once.
 
 ## Tests
 
-250 Python tests and 34 in the browser client, six of which run against a live
+241 Python tests and 34 in the browser client, six of which run against a live
 gateway. The six exist because
 every bug this layer has had got past the units: the flag that swallowed real
 replies, the preamble that broke the prompt cache, the vocative without a comma.
@@ -296,6 +296,45 @@ unfixable by missing information.
 There is no cap on how far a line travels. What ends a round is that nobody
 thought the last thing said was for them, which is the same rule that produces
 the silence in the first place.
+
+### Editing a rule: which half needs a restart
+
+The two halves of a rule reload differently, and mistaking one for the other
+reads exactly like the rule not working.
+
+* **The context** (`src/group_context.md`, `context/*.md`) is read on every
+  request, so an edit is live on the next model round. Watch the `[ctx]` line in
+  the TUI: the character count changes the moment the file does.
+* **The policy** (`src/policy/*.py`, the plugin) is Python, imported once when
+  the gateway boots. A running agent keeps the code it started with, however
+  many times the tests pass. `groups group:down && groups group:up`.
+
+Observed: a guard was added to both halves, the context reached the agents on
+the next line (`[ctx] 30,009 → 30,785`), the model ignored it, and the
+deterministic backstop that exists for exactly that never ran, because the three
+gateways were two and a half hours older than the file. The trace says which:
+the flag below appears on a turn the guard rewrote, and never appears at all
+when the process predates it.
+
+### And the outbound half of it: a question says whose it is
+
+Addressing works in both directions, and only one of them was covered. An agent
+that asks back without naming anybody leaves a question hanging in a room where
+everyone can hear it:
+
+```
+Anna:  I'm good! Pepe, are you up for doing something tomorrow?
+Pepe:  Sure — what did you have in mind?          ← whose question is that?
+```
+
+Anna asked Pepe by name; Pepe asked the room. Either nobody answers or all of
+them do. `policy/questions.py` is the deterministic backstop under the prompt
+rule, the same arrangement `outbound_length` has with the brevity guidance: a
+reply that carries a `?` and names nobody gets the name of whoever it is
+answering, taken from the `Speaker:` prefix that opened the turn and placed at
+the question itself — `what did you have in mind, Anna?`. It invents nothing, so
+a reply that already names somebody, calls the room ("anyone free Saturday?"),
+or answers a person who never gave a name (`you:`) goes out exactly as written.
 
 ## Spoken replies
 

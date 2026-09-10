@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from src.gateway_plugin import _transform_output, register
+from src.gateway_plugin import _open_turn, _transform_output, register
 
 
 class _FakePluginContext:
@@ -83,6 +83,28 @@ def test_plain_text_is_deterministically_capped() -> None:
     assert transformed is not None
     assert len(transformed) <= 250
     assert transformed.endswith("…")
+
+
+def test_a_question_leaves_the_turn_with_a_name_on_it(monkeypatch) -> None:
+    """End to end: the turn opens with Anna's line, the reply asks back without
+    naming anybody, and what ships says who it is asking."""
+    monkeypatch.setenv("HERMES_AGENT_NAME", "Pepe")
+    _open_turn(user_message="Anna: I'm good! Pepe, are you up for something tomorrow?")
+
+    assert _transform_output(response_text="Sure — what did you have in mind?") == (
+        "Sure — what did you have in mind, Anna?"
+    )
+
+
+def test_the_name_is_added_before_the_cap_not_after(monkeypatch) -> None:
+    """The cap is the layer's one promise about outbound length. A name added
+    after the trim would ship 250 characters plus a name."""
+    monkeypatch.setenv("HERMES_AGENT_NAME", "Pepe")
+    _open_turn(user_message="Anna: Pepe, what do you think?")
+
+    transformed = _transform_output(response_text="word " * 100 + "right?")
+
+    assert transformed is not None and len(transformed) <= 250
 
 
 def test_the_review_flag_cannot_cross_into_another_turn() -> None:
