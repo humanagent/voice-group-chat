@@ -73,9 +73,11 @@ export function ChallengeResult({ run, standing, player, online, canPlay, publis
     if (!run.score) return <p className="result-standing">No replies to count. <span>Ask something two of them will want to answer.</span></p>
     if (standing) return <p className="result-standing" role="status"><b>#{standing.rank}</b> <span>of {standing.total} on the board</span></p>
     if (error) return <p className="result-standing" role="alert">{error} <button type="button" className="result-retry" onClick={() => void publish()} disabled={saving || !online}>Try again</button></p>
-    if (saving) return <p className="result-standing" role="status">Saving your place…</p>
-    if (!online) return <p className="result-standing" role="status">Offline. <span>Your score goes on the board when you’re back.</span></p>
-    return <p className="result-standing" role="status">{run.submitted ? "Published." : "Saved."}</p>
+    if (!online && !run.submitted) return <p className="result-standing" role="status">Offline. <span>Your score goes on the board when you’re back.</span></p>
+    // Between mounting and the answer there is no third thing to say. It was
+    // "Saved." for those frames, which is true of the score and reads as a
+    // claim about the board.
+    return <p className="result-standing" role="status">{run.submitted ? "Published." : "Saving your place…"}</p>
   }
 
   return <dialog ref={dialog} className={`room-dialog challenge-result ${run.status === "won" ? "challenge-won" : ""}`} aria-labelledby="challenge-result-title" aria-describedby="challenge-final-score" onCancel={(event) => { event.preventDefault(); dismiss() }} onKeyDown={cycleDialogFocus}>
