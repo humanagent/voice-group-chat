@@ -80,9 +80,14 @@ or saved result. After a reload, **View result** recovers an unpublished score
 without sending a prompt. **Back to the room** is always in the header; leaving
 the page or stopping cancels an active attempt. Header view switches do not
 unmount the room, interrupt a round, reset context or discard its draft. The
-header contains Room, Challenge, Leaderboard and (when available) Install actions. Room
-navigation never clears shared history. The former clear-context and volume
-actions and duplicate scoreboard links are no longer in the header/content.
+header contains Room, Challenge, Leaderboard, Clear and (when available) Install
+actions. Room navigation never clears shared history — **Clear** is the only
+thing that does, and it asks first: it deletes the conversation from all three
+agents and from every screen with the room open, then reopens the room. It is
+disabled while a round is running, and the server refuses it with a 409 anyway
+rather than clearing a room out from under a round. The name, the draft and the
+board are untouched. The former volume action and the duplicate scoreboard links
+are no longer in the header/content.
 The scoreboard is the challenge landing screen, without the agent stage above
 it; Play returns to the room with its orbs and existing recording controls visible.
 

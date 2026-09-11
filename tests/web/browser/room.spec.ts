@@ -47,6 +47,64 @@ test("chat, multiline drafts, IME, and real performance samples", async ({ page 
   expect(errors).toEqual([])
 })
 
+test("clearing the room asks first, then forgets it everywhere", async ({ page }) => {
+  const kept = [{ speaker: "Fabri", text: "a name from an older sitting", spoken: false }]
+  await mockRoom(page, kept)
+  let cleared = 0
+  let busy = false
+  await page.route("**/api/room", async (route) => {
+    if (route.request().method() === "DELETE") {
+      cleared++
+      if (busy) return route.fulfill({ status: 409, json: { error: "The room is responding. Wait before clearing it." } })
+      // Cleared and reopened, which is what the server answers with.
+      await page.route("**/api/history?*", (again) => again.fulfill({ json: { lines: [] } }))
+      return route.fulfill({ json: { chat: "room", agents: 3, complete: true } })
+    }
+    return route.fulfill({ json: { chat: "room", agents: ["Anna", "Jordan", "Pepe"], complete: true } })
+  })
+  await page.goto("/")
+  await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
+  const old = page.getByText("a name from an older sitting", { exact: true })
+  await expect(old).toBeVisible()
+
+  // The press opens the question; nothing is forgotten by a mis-tap.
+  const eraser = page.getByRole("button", { name: "Clear the room" })
+  await eraser.click()
+  const ask = page.getByRole("dialog", { name: "Clear the room?" })
+  await expect(ask).toBeVisible()
+  // The safe answer is the one already under the finger.
+  await expect(ask.getByRole("button", { name: "Keep the conversation" })).toBeFocused()
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+  await ask.getByRole("button", { name: "Keep the conversation" }).click()
+  await expect(ask).toHaveCount(0)
+  await expect(old).toBeVisible()
+  expect(cleared).toBe(0)
+
+  // Escape is the same answer as keeping it.
+  await eraser.click()
+  await page.keyboard.press("Escape")
+  await expect(old).toBeVisible()
+  expect(cleared).toBe(0)
+
+  // A room that is answering cannot be cleared out from under the round.
+  busy = true
+  await eraser.click()
+  await ask.getByRole("button", { name: /Clear it/ }).click()
+  await expect(page.getByRole("region", { name: "The room", exact: true }).getByRole("alert")).toContainText("The room is responding")
+  await expect(old).toBeVisible()
+  expect(cleared).toBe(1)
+
+  busy = false
+  await eraser.click()
+  await ask.getByRole("button", { name: /Clear it/ }).click()
+  await expect(old).toHaveCount(0)
+  await expect(page.locator(".chat-message")).toHaveCount(0)
+  expect(cleared).toBe(2)
+  // The room is open again, not left disconnected, and the name is still ours.
+  await expect(page.getByRole("heading", { name: "Tester’s room", exact: true })).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Message the room" })).toBeEditable()
+})
+
 test("queued messages serialize and an interrupted stream is recoverable", async ({ page }) => {
   await mockRoom(page)
   let release: () => void = () => {}
@@ -106,8 +164,13 @@ test("incoming replies respect scroll position and room navigation does not clea
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
   let cleared = false
   page.on("request", (request) => { if (request.method() === "DELETE") cleared = true })
-  await expect(page.getByRole("button", { name: "Clear the room", exact: true })).toHaveCount(0)
+  // There IS a way to clear the room, and moving around it is not that way:
+  // the eraser asks a question first, and nothing else sends a delete at all.
+  await expect(page.getByRole("button", { name: "Clear the room", exact: true })).toBeVisible()
   await page.getByRole("button", { name: "Room mode", exact: true }).click()
+  await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "Global scoreboard", exact: true }).click()
+  await page.getByRole("button", { name: "Back to the room", exact: true }).click()
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
   expect(cleared).toBe(false)
 })

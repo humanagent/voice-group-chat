@@ -385,6 +385,12 @@ button:disabled { opacity: .35; }
      what has to survive it, so the possessive steps aside for the round rather
      than the name being cut down to two letters. */
   .room-shell[data-attempt="true"] .room-title-tail { display: none; }
+  /* Five controls and a title do not fit across a small phone, and the half
+     that was giving way was the name — cut to an initial while "'s room" sat
+     whole underneath an icon. The possessive goes instead, for the same reason
+     it goes during a round: the name is the part that means something. */
+  @media (max-width: 380px) { .room-title-tail { display: none; } }
+  .room-actions { flex-shrink: 0; }
   /* A persistent, compact mobile stage leaves room for the keyboard without
      hiding or moving the agents when an input receives focus. */
   .stage-wrap { padding: 4px 14px 8px; }.agent-stage { gap: 20px; padding: 4px 0; }.agent { width: 80px; }.agent-orbit { width: 56px; height: 56px; margin-bottom: 6px; }.agent-name { font-size: 12px; }.agent-caption { height: 16px; margin-top: 2px; font-size: 9px; }
@@ -458,6 +464,14 @@ html[data-room-standalone="true"] .composer-wrap { padding-bottom: max(8px, calc
 .result-standing span { color: #aaa7b6; }
 .result-retry { color: #d8cafa; text-decoration: underline; text-underline-offset: 3px; }
 .challenge-intro { padding-bottom: 24px; }
+/* The question asked before three agents forget a conversation. No trophy above
+   it: nothing is being won here, and the sentence under the heading is the whole
+   dialog. The ending action is the quiet one on purpose — see the component. */
+.clear-room { padding-bottom: 22px; }
+.clear-room h2 { font-size: 21px; letter-spacing: -.6px; }
+.clear-room .clear-what { margin: 10px 0 22px; font-size: 13px; line-height: 1.6; }
+.clear-room .confirm-button { margin-top: 4px; }
+.clear-confirm { font-size: 12px; }
 /* The first question the room asks. No trophy above it: this is the room's own
    door, not the game's. */
 .name-gate { padding-bottom: 22px; }
