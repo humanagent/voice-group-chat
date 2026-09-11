@@ -4,7 +4,7 @@ test("the bottom of a scrolled PWA transcript cannot cover the input or its foot
   await page.setViewportSize({ width: 440, height: 956 })
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { get: () => true }))
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
-  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: Array.from({ length: 40 }, (_, index) => ({ speaker: "Anna", text: `Message ${index}. ` + "A longer reply. ".repeat(12), spoken: false })) } }))
+  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: Array.from({ length: 40 }, (_, index) => ({ speaker: "Steve", text: `Message ${index}. ` + "A longer reply. ".repeat(12), spoken: false })) } }))
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
   await page.evaluate(() => {
@@ -85,7 +85,7 @@ test("iOS keyboard pan keeps the room above the keyboard and restores full heigh
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [
     { speaker: "you", text: "A test message.", spoken: false },
-    { speaker: "Anna", text: "A test reply.", spoken: false },
+    { speaker: "Steve", text: "A test reply.", spoken: false },
   ] } }))
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")

@@ -3,7 +3,7 @@
 ## The standup
 
 ```
-ana, daily standup, pass-it-on. say your one thing — what you're working on
+steeve, daily standup, pass-it-on. say your one thing — what you're working on
 or stuck on — then name ONE person who has not gone yet. if everyone has
 gone, name nobody and close by saying the one thing we should all agree on.
 ```
@@ -13,10 +13,10 @@ one worth typing first.
 
 ### What it should do
 
-- **Anna answers, the other two stay quiet.** She is named; they are not. Three
+- **Steve answers, the other two stay quiet.** Steve is named; they are not. Three
   agents reading the same line and two of them deciding it was not theirs is
   the whole demonstration.
-- **Anna hands off by name**, and whoever she named answers next — because her
+- **Steve hands off by name**, and whoever Steve named answers next — because that
   reply reaches both of them and each decides for itself.
 - **The chain runs once through everybody**, in whatever order they hand it on.
 - **It ends by itself.** The last one names nobody, so nobody answers, so the
@@ -32,7 +32,7 @@ one worth typing first.
 | | |
 |---|---|
 | everyone answers | addressing is not working — they should not all speak |
-| nobody answers | Anna was not recognised as addressed |
+| nobody answers | Steve was not recognised as addressed |
 | it does not stop | somebody kept naming people who had already gone |
 | two agents sound the same | the cast is not reaching them, or two drew the same persona |
 | the text and the voice arrive together | the turn is synthesising again; it should print, then speak |

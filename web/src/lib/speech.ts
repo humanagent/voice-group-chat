@@ -55,11 +55,12 @@ export const TTS_MODEL = SPEECH.model
 /**
  * What language to tell the voice and the transcriber to expect, or null.
  *
- * Null is a decision rather than an omission: this room is spoken to in two
- * languages and pinning one would make the other worse. It costs something —
- * autodetection is what heard "Ana" and wrote "Anna" — so `speech.json` says
- * which trade this room took, and a room that only speaks one language sets a
- * code there and stops paying for it.
+ * Null is a decision rather than an omission: this room is spoken to in more
+ * than one language and pinning one would make the others worse. It costs
+ * something — autodetection is what respells a short name it half-heard, and a
+ * one-word reply is the likeliest to flip — so `speech.json` says which trade
+ * this room took, and a room that only speaks one language sets a code there
+ * and stops paying for it.
  */
 export const TTS_LANGUAGE = SPEECH.language ?? null
 

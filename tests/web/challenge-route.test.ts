@@ -12,7 +12,7 @@ import { roomEvents } from "@/lib/room-stream"
 const cookie = vi.hoisted(() => ({ value: "a".repeat(64), set: vi.fn() }))
 vi.mock("../../web/node_modules/next/headers.js", () => ({ cookies: async () => ({ get: () => cookie.value ? { value: cookie.value } : undefined, set: cookie.set }) }))
 vi.mock("@/lib/challenge-store", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/challenge-store")>(), challengeStore: vi.fn() }))
-vi.mock("@/lib/agents", () => ({ agents: () => ["Anna", "Jordan", "Pepe"].map((name) => ({ name, url: "http://localhost:9", key: "test" })) }))
+vi.mock("@/lib/agents", () => ({ agents: () => ["Steve", "Jordan", "Pepe"].map((name) => ({ name, url: "http://localhost:9", key: "test" })) }))
 vi.mock("@/lib/room-session", () => ({ ensureRoom: vi.fn(async () => {}) }))
 vi.mock("@/lib/group", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/group")>(),
@@ -57,7 +57,7 @@ describe("challenge HTTP boundary", () => {
     expect(body).not.toContain(run.id)
   })
   it("rejects forged scores, speakers and sessions before starting a run", async () => {
-    for (const body of [{ message: "hi", score: 20 }, { message: "hi", chat: "chosen" }, { message: "hi", speaker: "Anna" }]) {
+    for (const body of [{ message: "hi", score: 20 }, { message: "hi", chat: "chosen" }, { message: "hi", speaker: "Steve" }]) {
       expect((await POST(request(body))).status).toBe(400)
     }
     expect(db.latest(challengeOwner(cookie.value))).toBeNull()
@@ -97,7 +97,7 @@ describe("challenge HTTP boundary", () => {
   })
   it("public room endpoints reject arbitrary sessions and forged speakers", async () => {
     expect((await publicSay(request({ chat: "challenge-private", message: "cheat" }))).status).toBe(400)
-    expect((await publicSay(request({ chat: "room", message: "cheat", speaker: "Anna" }))).status).toBe(400)
+    expect((await publicSay(request({ chat: "room", message: "cheat", speaker: "Steve" }))).status).toBe(400)
     expect((await publicHistory(new Request("https://room.example/api/history?chat=challenge-private"))).status).toBe(404)
   })
   it("holds the shared room against overlapping prompts and resets", async () => {

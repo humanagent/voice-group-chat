@@ -158,7 +158,7 @@ def test_agents_in_a_group_never_share_a_voice() -> None:
     room. Hashing the name alone collided: Jordan and Pepe drew the same one."""
     from src.policy.voice import VOICES, voice_for
 
-    group = ["Anna", "Jordan", "Pepe"]
+    group = ["Steve", "Jordan", "Pepe"]
     voices = [voice_for(n, group) for n in group]
     assert len(set(voices)) == 3
     assert all(v in VOICES for v in voices)
@@ -169,16 +169,16 @@ def test_the_assignment_does_not_depend_on_how_they_were_listed() -> None:
     voice, or restarting reshuffles who sounds like whom."""
     from src.policy.voice import voice_for
 
-    assert voice_for("Pepe", ["Anna", "Jordan", "Pepe"]) == voice_for(
-        "Pepe", ["Pepe", "Anna", "Jordan"]
+    assert voice_for("Pepe", ["Steve", "Jordan", "Pepe"]) == voice_for(
+        "Pepe", ["Pepe", "Steve", "Jordan"]
     )
 
 
 def test_without_a_group_a_name_still_gets_a_stable_voice() -> None:
     from src.policy.voice import VOICES, voice_for
 
-    assert voice_for("Anna") == voice_for("anna")
-    assert voice_for("Anna") in VOICES
+    assert voice_for("Steve") == voice_for("steve")
+    assert voice_for("Steve") in VOICES
 
 
 def test_the_audio_marker_comes_off_the_reply() -> None:

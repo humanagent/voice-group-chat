@@ -14,7 +14,7 @@ test("slow startup protects the input, then allows drafts before the room connec
   })
   await page.route("**/api/room", async (route) => {
     await room
-    await route.fulfill({ json: { chat: "room", agents: ["Anna", "Jordan", "Pepe"], complete: true } })
+    await route.fulfill({ json: { chat: "room", agents: ["Steve", "Jordan", "Pepe"], complete: true } })
   })
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   await page.route("**/api/telemetry", (route) => route.fulfill({ status: 204 }))

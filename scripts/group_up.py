@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stand up a group of agents, one gateway each.
 
-    scripts/group_up.py Anna Jordan Pepe
+    scripts/group_up.py Steve Jordan Pepe
 
 Creates a Hermes home per agent, starts a gateway per agent, and writes
 `group.json` so the chat client knows where they live. Idempotent: an agent that
@@ -215,7 +215,7 @@ def start(agent: Agent, settings: dict[str, str]) -> bool:
 
 
 def main() -> None:
-    names = sys.argv[1:] or ["Anna", "Jordan", "Pepe"]
+    names = sys.argv[1:] or ["Steve", "Jordan", "Pepe"]
     settings = base_settings()
     if not settings.get("OPENROUTER_API_KEY"):
         sys.exit(

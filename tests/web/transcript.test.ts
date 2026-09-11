@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { history, splitAudio } from "@/lib/group"
 
-const agent = { name: "Anna", url: "http://agent", key: "k" }
+const agent = { name: "Steve", url: "http://agent", key: "k" }
 
 /** One session's messages, as the gateway hands them back. */
 function session(messages: { role: string; content: string }[]) {
@@ -23,7 +23,7 @@ describe("what a room reads back", () => {
     ])
     expect(await history(agent, "room-1")).toEqual([
       { speaker: "you", text: "morning", spoken: false },
-      { speaker: "Anna", text: "Morning.", spoken: false },
+      { speaker: "Steve", text: "Morning.", spoken: false },
       { speaker: "Jordan", text: "morning to you too", spoken: false },
     ])
   })
@@ -41,7 +41,7 @@ describe("what a room reads back", () => {
       { role: "assistant", content: "Noted." },
     ])
     const lines = await history(agent, "room-1")
-    expect(lines.map((l) => l.speaker)).toEqual(["you", "Anna"])
+    expect(lines.map((l) => l.speaker)).toEqual(["you", "Steve"])
     expect(JSON.stringify(lines)).not.toContain("success")
   })
 
@@ -55,7 +55,7 @@ describe("what a room reads back", () => {
   })
 
   it("keeps the roster out of it", async () => {
-    session([{ role: "user", content: "System: In this chat: you, Anna, Jordan" }])
+    session([{ role: "user", content: "System: In this chat: you, Steve, Jordan" }])
     expect(await history(agent, "room-1")).toEqual([])
   })
 
@@ -71,7 +71,7 @@ describe("what a room reads back", () => {
   it("marks a reply that was spoken, without reading the path out loud", async () => {
     session([{ role: "assistant", content: "MEDIA:/tmp/a.mp3\nOn my way." }])
     expect(await history(agent, "room-1")).toEqual([
-      { speaker: "Anna", text: "On my way.", spoken: true },
+      { speaker: "Steve", text: "On my way.", spoken: true },
     ])
   })
 
@@ -108,7 +108,7 @@ describe("deleting a room", () => {
       }),
     )
     const group = [
-      { name: "Anna", url: "http://a", key: "k" },
+      { name: "Steve", url: "http://a", key: "k" },
       { name: "Jordan", url: "http://b", key: "k" },
       { name: "Pepe", url: "http://c", key: "k" },
     ]
@@ -123,7 +123,7 @@ describe("deleting a room", () => {
   it("counts a room an agent never had as one it no longer has", async () => {
     const { forget } = await import("@/lib/group")
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 404 })))
-    expect(await forget([{ name: "Anna", url: "http://a", key: "k" }], "room-1")).toBe(1)
+    expect(await forget([{ name: "Steve", url: "http://a", key: "k" }], "room-1")).toBe(1)
   })
 
   it("reports the ones that did not take it rather than claiming success", async () => {
@@ -138,7 +138,7 @@ describe("deleting a room", () => {
       }),
     )
     const group = [
-      { name: "Anna", url: "http://a", key: "k" },
+      { name: "Steve", url: "http://a", key: "k" },
       { name: "Jordan", url: "http://b", key: "k" },
     ]
     expect(await forget(group, "room-1")).toBe(1)

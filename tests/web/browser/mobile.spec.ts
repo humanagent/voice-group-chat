@@ -4,8 +4,8 @@ async function openRoom(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "visual-room", complete: true } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [
-    { speaker: "you", text: "Anna, ask everyone what they think.", spoken: false },
-    { speaker: "Anna", text: "What would you change first?\n\nLet’s take it one step at a time.", spoken: false },
+    { speaker: "you", text: "Steve, ask everyone what they think.", spoken: false },
+    { speaker: "Steve", text: "What would you change first?\n\nLet’s take it one step at a time.", spoken: false },
     { speaker: "Jordan", text: "Start with the small screen. Keep the conversation and controls within reach.", spoken: false },
   ] } }))
   await page.goto("/")

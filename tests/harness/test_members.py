@@ -4,11 +4,11 @@ from src.members import speakers_in
 
 
 def test_a_prefixed_line_names_its_speaker() -> None:
-    assert speakers_in("Anna: hey") == ["Anna"]
+    assert speakers_in("Steve: hey") == ["Steve"]
 
 
 def test_a_coalesced_burst_names_everyone_in_it() -> None:
-    assert speakers_in("Anna: hey\nJordan: yes\nAnna: sure") == ["Anna", "Jordan"]
+    assert speakers_in("Steve: hey\nJordan: yes\nSteve: sure") == ["Steve", "Jordan"]
 
 
 def test_an_unprefixed_line_names_nobody() -> None:

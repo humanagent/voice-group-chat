@@ -5,7 +5,7 @@ from src.policy.questions import ensure_addressed
 NAME = "Pepe"
 
 
-ASKED = "Anna: Pepe, are you up for something?"
+ASKED = "Steve: Pepe, are you up for something?"
 
 
 def guard(text: str, inbound: str | None = ASKED) -> str:
@@ -13,10 +13,10 @@ def guard(text: str, inbound: str | None = ASKED) -> str:
 
 
 def test_the_observed_case_gets_a_name_on_it() -> None:
-    """Anna asked Pepe by name; Pepe asked back into the void, and in a room
+    """Steve asked Pepe by name; Pepe asked back into the void, and in a room
     that is a question nobody knows is theirs."""
     assert guard("Sure — what did you have in mind?") == (
-        "Sure — what did you have in mind, Anna?"
+        "Sure — what did you have in mind, Steve?"
     )
 
 
@@ -26,9 +26,9 @@ def test_a_statement_is_left_exactly_as_written() -> None:
 
 
 def test_a_question_that_already_names_the_asker_is_untouched() -> None:
-    said = "Anna, what did you have in mind?"
+    said = "Steve, what did you have in mind?"
     assert guard(said) == said
-    tail = "What did you have in mind, Anna?"
+    tail = "What did you have in mind, Steve?"
     assert guard(tail) == tail
 
 
@@ -61,13 +61,13 @@ def test_a_turn_nobody_started_has_nobody_to_name() -> None:
 def test_only_the_first_question_is_named() -> None:
     """One address settles who the reply is talking to; a name on every clause
     reads like a hostage video."""
-    assert guard("What time? And where?") == "What time, Anna? And where?"
+    assert guard("What time? And where?") == "What time, Steve? And where?"
 
 
 def test_the_name_lands_before_the_punctuation_not_inside_it() -> None:
-    assert guard("Wait, really!?") == "Wait, really, Anna!?"
-    assert guard("Hmm... what?") == "Hmm... what, Anna?"
-    assert guard("¿Qué hora es?") == "¿Qué hora es, Anna?"
+    assert guard("Wait, really!?") == "Wait, really, Steve!?"
+    assert guard("Hmm... what?") == "Hmm... what, Steve?"
+    assert guard("¿Qué hora es?") == "¿Qué hora es, Steve?"
 
 
 def test_a_bare_question_mark_is_left_alone() -> None:
@@ -79,20 +79,20 @@ def test_a_bare_question_mark_is_left_alone() -> None:
 def test_the_asker_is_whoever_called_the_agent() -> None:
     """A batch where somebody spoke after the question: the one who used the
     agent's name is the one waiting on the answer."""
-    inbound = "Jordan: Pepe, are you around tomorrow?\nAnna: brb"
+    inbound = "Jordan: Pepe, are you around tomorrow?\nSteve: brb"
     said = "Should be — what time?"
     assert guard(said, inbound) == "Should be — what time, Jordan?"
 
 
 def test_the_asker_is_the_last_to_speak_when_nobody_used_a_name() -> None:
-    inbound = "Jordan: hey\nAnna: we still doing tomorrow"
-    assert guard("Think so — what time?", inbound) == "Think so — what time, Anna?"
+    inbound = "Jordan: hey\nSteve: we still doing tomorrow"
+    assert guard("Think so — what time?", inbound) == "Think so — what time, Steve?"
 
 
 def test_a_misheard_name_still_counts_as_naming_the_asker() -> None:
     """The room arrives through speech-to-text and the outbound side inherits
-    the same spellings. "Ana" is Anna being called, not a second person."""
-    said = "Ana, what did you have in mind?"
+    the same spellings. "Steeve" is Steve being called, not a second person."""
+    said = "Steeve, what did you have in mind?"
     assert guard(said) == said
 
 
@@ -101,4 +101,4 @@ def test_the_room_s_own_machinery_is_not_somebody_to_call() -> None:
     turn of every room answers it. Found in a real trace as "What do you need,
     System?"."""
     said = "I'm here. What do you need?"
-    assert guard(said, inbound="System: In this chat: Fabri, Anna, Pepe.") == said
+    assert guard(said, inbound="System: In this chat: Fabri, Steve, Pepe.") == said

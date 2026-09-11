@@ -28,7 +28,7 @@ describe("who each agent is in a room", () => {
     // room pointless: they would agree about everything, for the same reasons.
     withPersonas(10)
     const { cast } = await import("@/lib/personas")
-    const hands = cast(["Anna", "Jordan", "Pepe"])
+    const hands = cast(["Steve", "Jordan", "Pepe"])
     expect(hands).toHaveLength(3)
     expect(new Set(hands).size).toBe(3)
   })
@@ -38,7 +38,7 @@ describe("who each agent is in a room", () => {
     // that ran support before and security after is not a cleared room.
     withPersonas(10)
     const { cast } = await import("@/lib/personas")
-    const names = ["Anna", "Jordan", "Pepe"]
+    const names = ["Steve", "Jordan", "Pepe"]
     const first = cast(names)
     expect(cast(names)).toEqual(first)
     expect(cast(names)).toEqual(first)
@@ -47,8 +47,8 @@ describe("who each agent is in a room", () => {
   it("gives an agent who joins later somebody nobody has", async () => {
     withPersonas(10)
     const { cast } = await import("@/lib/personas")
-    const before = cast(["Anna", "Jordan"])
-    const after = cast(["Anna", "Jordan", "Pepe"])
+    const before = cast(["Steve", "Jordan"])
+    const after = cast(["Steve", "Jordan", "Pepe"])
     expect(after.slice(0, 2)).toEqual(before)
     expect(before).not.toContain(after[2])
   })
@@ -56,7 +56,7 @@ describe("who each agent is in a room", () => {
   it("opens the room anyway when there are fewer personas than agents", async () => {
     withPersonas(2)
     const { cast } = await import("@/lib/personas")
-    const hands = cast(["Anna", "Jordan", "Pepe", "Sam"])
+    const hands = cast(["Steve", "Jordan", "Pepe", "Sam"])
     expect(hands.filter(Boolean)).toHaveLength(2)
     expect(hands.filter((h) => h === null)).toHaveLength(2)
   })
@@ -64,7 +64,7 @@ describe("who each agent is in a room", () => {
   it("treats a missing folder as nobody in particular, not as an error", async () => {
     vi.spyOn(process, "cwd").mockReturnValue(mkdtempSync(join(tmpdir(), "bare-")))
     const { cast } = await import("@/lib/personas")
-    expect(cast(["Anna", "Jordan", "Pepe"])).toEqual([null, null, null])
+    expect(cast(["Steve", "Jordan", "Pepe"])).toEqual([null, null, null])
   })
 
   it("tells an agent the briefing is its own and not to quote it", async () => {

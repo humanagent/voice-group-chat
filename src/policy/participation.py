@@ -115,9 +115,9 @@ def preamble(chat: object, addressed: bool) -> str:
     if addressed:
         # Told, not ordered. This branch used to end "Answer it.", which took
         # the decision away in the one case where it is actually a decision: a
-        # message NAMES the agent without being for it. "Anna, tell Pepe to say
+        # message NAMES the agent without being for it. "Steve, tell Pepe to say
         # hi" carries Pepe's name, so the check said addressed and the note
-        # made him answer a request that was Anna's to relay — and then he
+        # made him answer a request that was Steve's to relay — and then he
         # answered again when she did relay it. The check is a fact about the
         # text; whether it was meant is a judgement, and the model is the one
         # holding the sentence.

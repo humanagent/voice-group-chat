@@ -3,17 +3,17 @@ import { grantAllows, grantFor } from "@/lib/speech-grant"
 
 describe("proof that the room said this", () => {
   it("accepts exactly what was signed", () => {
-    const grant = grantFor("Anna", "the deploy is green")
-    expect(grantAllows("Anna", "the deploy is green", grant)).toBe(true)
+    const grant = grantFor("Steve", "the deploy is green")
+    expect(grantAllows("Steve", "the deploy is green", grant)).toBe(true)
   })
 
   it("refuses a different speaker, different words, or no grant at all", () => {
-    const grant = grantFor("Anna", "the deploy is green")
+    const grant = grantFor("Steve", "the deploy is green")
     expect(grantAllows("Jordan", "the deploy is green", grant)).toBe(false)
-    expect(grantAllows("Anna", "the deploy is red", grant)).toBe(false)
-    expect(grantAllows("Anna", "the deploy is green", null)).toBe(false)
-    expect(grantAllows("Anna", "the deploy is green", "")).toBe(false)
-    expect(grantAllows("Anna", "the deploy is green", "not-a-grant")).toBe(false)
+    expect(grantAllows("Steve", "the deploy is red", grant)).toBe(false)
+    expect(grantAllows("Steve", "the deploy is green", null)).toBe(false)
+    expect(grantAllows("Steve", "the deploy is green", "")).toBe(false)
+    expect(grantAllows("Steve", "the deploy is green", "not-a-grant")).toBe(false)
   })
 
   it("cannot be re-cut by moving the boundary between name and words", () => {
@@ -24,7 +24,7 @@ describe("proof that the room said this", () => {
   })
 
   it("does not throw on a grant of the wrong length", () => {
-    expect(() => grantAllows("Anna", "hello", "x")).not.toThrow()
-    expect(grantAllows("Anna", "hello", "x".repeat(500))).toBe(false)
+    expect(() => grantAllows("Steve", "hello", "x")).not.toThrow()
+    expect(grantAllows("Steve", "hello", "x".repeat(500))).toBe(false)
   })
 })

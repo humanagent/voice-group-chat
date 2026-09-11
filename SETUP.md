@@ -55,7 +55,7 @@ TTS_MODEL = "eleven_flash_v2_5"
 Every home is pointed back at those on start, and says so when it moves one:
 
 ```
-Anna: z-ai/glm-5.3 -> openai/gpt-5.6-sol
+Steve: z-ai/glm-5.3 -> openai/gpt-5.6-sol
 Jordan: z-ai/glm-5.3 -> openai/gpt-5.6-sol
 Pepe: z-ai/glm-5.3 -> openai/gpt-5.6-sol
 ```
@@ -136,7 +136,7 @@ particular, exactly as they were before.
 The underlying scripts still run directly if you want them:
 
 ```sh
-uv run python scripts/group_up.py Anna Jordan Pepe   # one home per agent
+uv run python scripts/group_up.py Steve Jordan Pepe   # one home per agent
 uv run python scripts/group.py                       # the room, in a terminal
 uv run python scripts/tui.py                         # the decision log
 ```
@@ -181,7 +181,7 @@ trace and the gateway's own stdout are merged as they arrive.
 20:07:13          out Mañana en Buenos Aires no parece que llueva: probabilidad máxima 12%…
 
 20:07:13 [turn]    chat=log-1787872016 history=6 first=false
-20:07:13          in  Anna: che jordan viste la hora ⏎ Jordan: si ya se
+20:07:13          in  Steve: che jordan viste la hora ⏎ Jordan: si ya se
 20:07:16 [llm]     round=1 model=openai/gpt-5.6-sol in=310 (cache_r=26,112 hit=99%) out=81 finish=stop 3.2s
 20:07:16 [policy]  quiet   reason='suppress token' raw=8 → 0
 ```
@@ -279,11 +279,11 @@ somewhere else.
 
 ```sh
 groups group        # starts them if they are not up, then opens the room
-groups group:up Anna Jordan Pepe    # or name them yourself
+groups group:up Steve Jordan Pepe    # or name them yourself
 groups group:down
 ```
 
-`group_up.py` writes one Hermes home per agent (`.hermes-anna/`, …) and a
+`group_up.py` writes one Hermes home per agent (`.hermes-steve/`, …) and a
 `group.json` saying where they live. Both are gitignored: they hold keys and
 session databases. It reuses the provider key and model from `.hermes/`, so a
 group needs no credentials of its own.
@@ -323,16 +323,16 @@ that asks back without naming anybody leaves a question hanging in a room where
 everyone can hear it:
 
 ```
-Anna:  I'm good! Pepe, are you up for doing something tomorrow?
+Steve:  I'm good! Pepe, are you up for doing something tomorrow?
 Pepe:  Sure — what did you have in mind?          ← whose question is that?
 ```
 
-Anna asked Pepe by name; Pepe asked the room. Either nobody answers or all of
+Steve asked Pepe by name; Pepe asked the room. Either nobody answers or all of
 them do. `policy/questions.py` is the deterministic backstop under the prompt
 rule, the same arrangement `outbound_length` has with the brevity guidance: a
 reply that carries a `?` and names nobody gets the name of whoever it is
 answering, taken from the `Speaker:` prefix that opened the turn and placed at
-the question itself — `what did you have in mind, Anna?`. It invents nothing, so
+the question itself — `what did you have in mind, Steve?`. It invents nothing, so
 a reply that already names somebody, calls the room ("anyone free Saturday?"),
 or answers a person who never gave a name (`you:`) goes out exactly as written.
 

@@ -70,7 +70,7 @@ async function post(agent: Agent, path: string, body: unknown, ms = 240_000, sig
 }
 
 /** Give one agent its own session for this chat. Each keeps a separate one
- *  under the same name, because history is per-agent: what Anna remembers of
+ *  under the same name, because history is per-agent: what Steve remembers of
  *  this room is not what Jordan remembers. */
 export async function openChat(agent: Agent, chat: string, signal?: AbortSignal): Promise<void> {
   try {
@@ -119,7 +119,7 @@ export function roster(agents: Agent[], people: string[], you: string): string {
     // above, and an agent given both rules at once has read the second as
     // forbidding the first.
     "When your reply asks a question, name who you are asking: \"what did you " +
-    "have in mind, Anna?\". That name goes inside the sentence, not in front of it."
+    "have in mind, Steve?\". That name goes inside the sentence, not in front of it."
   )
 }
 
@@ -147,7 +147,7 @@ export function audienceFor(agents: Agent[], speaker: string): Agent[] {
  *
  * Any of them will do: at the first hop every line reaches everybody, so each
  * agent's history holds the same room. What a `user` message carries is the
- * attributed line the client sent — "Anna: hello" — so the speaker is recovered
+ * attributed line the client sent — "Steve: hello" — so the speaker is recovered
  * from the prefix rather than from who the API says wrote it.
  */
 export async function history(agent: Agent, chat: string) {

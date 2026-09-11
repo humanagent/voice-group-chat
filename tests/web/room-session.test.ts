@@ -3,7 +3,7 @@ import { ensureRoom } from "@/lib/room-session"
 import { deliver, openChat } from "@/lib/group"
 
 vi.mock("@/lib/group", async (original) => ({ ...await original<typeof import("@/lib/group")>(), deliver: vi.fn(async () => ({ spoke: false })), openChat: vi.fn(async () => {}) }))
-const group = ["Anna", "Jordan", "Pepe"].map((name) => ({ name, url: `http://${name.toLowerCase()}.test`, key: "test" }))
+const group = ["Steve", "Jordan", "Pepe"].map((name) => ({ name, url: `http://${name.toLowerCase()}.test`, key: "test" }))
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks() })
 
 describe("shared room initialization", () => {

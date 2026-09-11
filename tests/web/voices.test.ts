@@ -27,19 +27,19 @@ describe("an agent's voice", () => {
   })
 
   it("gives every agent in a group a different one", () => {
-    const group = ["Anna", "Jordan", "Pepe"]
+    const group = ["Steve", "Jordan", "Pepe"]
     const heard = group.map((n) => voiceFor(n, group))
     expect(new Set(heard).size).toBe(3)
   })
 
   it("does not depend on the order the group was listed in", () => {
-    expect(voiceFor("Pepe", ["Anna", "Jordan", "Pepe"])).toBe(
-      voiceFor("Pepe", ["Pepe", "Anna", "Jordan"]),
+    expect(voiceFor("Pepe", ["Steve", "Jordan", "Pepe"])).toBe(
+      voiceFor("Pepe", ["Pepe", "Steve", "Jordan"]),
     )
   })
 
   it("still answers for an agent with no group to place it in", () => {
-    expect(VOICES).toContain(voiceFor("Anna"))
+    expect(VOICES).toContain(voiceFor("Steve"))
   })
 })
 

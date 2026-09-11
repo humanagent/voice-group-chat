@@ -86,13 +86,13 @@ def test_plain_text_is_deterministically_capped() -> None:
 
 
 def test_a_question_leaves_the_turn_with_a_name_on_it(monkeypatch) -> None:
-    """End to end: the turn opens with Anna's line, the reply asks back without
+    """End to end: the turn opens with Steve's line, the reply asks back without
     naming anybody, and what ships says who it is asking."""
     monkeypatch.setenv("HERMES_AGENT_NAME", "Pepe")
-    _open_turn(user_message="Anna: I'm good! Pepe, are you up for something tomorrow?")
+    _open_turn(user_message="Steve: I'm good! Pepe, are you up for something tomorrow?")
 
     assert _transform_output(response_text="Sure — what did you have in mind?") == (
-        "Sure — what did you have in mind, Anna?"
+        "Sure — what did you have in mind, Steve?"
     )
 
 
@@ -100,7 +100,7 @@ def test_the_name_is_added_before_the_cap_not_after(monkeypatch) -> None:
     """The cap is the layer's one promise about outbound length. A name added
     after the trim would ship 250 characters plus a name."""
     monkeypatch.setenv("HERMES_AGENT_NAME", "Pepe")
-    _open_turn(user_message="Anna: Pepe, what do you think?")
+    _open_turn(user_message="Steve: Pepe, what do you think?")
 
     transformed = _transform_output(response_text="word " * 100 + "right?")
 

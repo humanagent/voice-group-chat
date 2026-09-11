@@ -10,7 +10,7 @@ copy-pasteable into a bug report. Two sources are merged as they arrive:
     groups watch                      # follow from now
     groups replay                     # start from the top instead
     scripts/tui.py --session <chat>   # one chat only
-    scripts/tui.py --agent Anna=.hermes-anna --agent Pepe=.hermes-pepe
+    scripts/tui.py --agent Steve=.hermes-steve --agent Pepe=.hermes-pepe
 
 A group traces into each agent's own home, so reading one means tailing several
 files at once: `--agent NAME=HOME`, repeatable, merges them by timestamp and
@@ -141,7 +141,7 @@ class TurnTotals:
 _turn = TurnTotals()
 
 # One per source. A group is three gateways tracing at once, and a single
-# running total would add Anna's rounds to Pepe's turn and report a cost neither
+# running total would add Steve's rounds to Pepe's turn and report a cost neither
 # of them paid.
 _totals: dict[str, TurnTotals] = {}
 
@@ -328,7 +328,7 @@ def main() -> None:
 
     # In replay the trace backlog is printed first and in full, and across
     # several agents it is merged by timestamp — a group turn is three gateways
-    # deciding at the same moment, and reading Anna's whole history before
+    # deciding at the same moment, and reading Steve's whole history before
     # Jordan's first line would hide exactly that.
     if replay:
         backlog: list[tuple[float, str, dict]] = []

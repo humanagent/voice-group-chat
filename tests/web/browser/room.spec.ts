@@ -1,12 +1,12 @@
 import { AxeBuilder, expect, said, test, type Page } from "../../../web/test-support/browser"
 
 const sse = (text = "A small first step is a good place to start.") => [
-  { type: "thinking", agent: "Anna" }, said("Anna", text),
+  { type: "thinking", agent: "Steve" }, said("Steve", text),
   { type: "quiet", agent: "Jordan" }, { type: "quiet", agent: "Pepe" }, { type: "done" },
 ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")
 
 async function mockRoom(page: Page, lines: { speaker: string; text: string; spoken: boolean }[] = []) {
-  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room", agents: ["Anna", "Jordan", "Pepe"], complete: true } }))
+  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room", agents: ["Steve", "Jordan", "Pepe"], complete: true } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines } }))
   await page.route("**/api/speak?*", (route) => route.fulfill({ status: 503, json: { error: "Speech mocked for browser tests" } }))
   await page.route("**/api/scribe", (route) => route.fulfill({ status: 503, json: { error: "Microphone mocked for browser tests" } }))
@@ -22,10 +22,10 @@ test("chat, multiline drafts, IME, and real performance samples", async ({ page 
   await page.getByRole("button", { name: "Close performance diagnostics" }).click()
   await page.screenshot({ path: info.outputPath("room-empty.png") })
   const box = page.getByRole("textbox", { name: "Message the room" })
-  await box.fill("Anna, let’s explore an idea.")
+  await box.fill("Steve, let’s explore an idea.")
   await box.press("Shift+Enter")
   await box.press("KeyA")
-  await expect(box).toHaveValue("Anna, let’s explore an idea.\na")
+  await expect(box).toHaveValue("Steve, let’s explore an idea.\na")
   await box.evaluate((node) => node.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true })))
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toHaveCount(0)
   await page.getByRole("button", { name: "Send message", exact: true }).click()
@@ -35,7 +35,7 @@ test("chat, multiline drafts, IME, and real performance samples", async ({ page 
   await page.reload()
   await expect(box).toHaveValue("Keep this thought for later")
   await page.getByRole("button", { name: "Close performance diagnostics" }).click()
-  await box.fill("Anna, help me make this clearer.")
+  await box.fill("Steve, help me make this clearer.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
   await expect(page.getByText("A small first step is a good place to start.", { exact: true })).toBeVisible()
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -60,7 +60,7 @@ test("clearing the room asks first, then forgets it everywhere", async ({ page }
       await page.route("**/api/history?*", (again) => again.fulfill({ json: { lines: [] } }))
       return route.fulfill({ json: { chat: "room", agents: 3, complete: true } })
     }
-    return route.fulfill({ json: { chat: "room", agents: ["Anna", "Jordan", "Pepe"], complete: true } })
+    return route.fulfill({ json: { chat: "room", agents: ["Steve", "Jordan", "Pepe"], complete: true } })
   })
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
@@ -113,7 +113,7 @@ test("queued messages serialize and an interrupted stream is recoverable", async
   await page.route("**/api/say", async (route) => {
     sent.push(route.request().postDataJSON().message)
     if (sent.length === 1) { await held; await route.fulfill({ contentType: "text/event-stream", body: sse() }) }
-    else await route.fulfill({ contentType: "text/event-stream", body: 'data: {"type":"thinking","agent":"Anna"}\n\n' })
+    else await route.fulfill({ contentType: "text/event-stream", body: 'data: {"type":"thinking","agent":"Steve"}\n\n' })
   })
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
@@ -133,17 +133,17 @@ test("queued messages serialize and an interrupted stream is recoverable", async
 })
 
 test("incoming replies respect scroll position and room navigation does not clear context", async ({ page, browserName }) => {
-  await mockRoom(page, Array.from({ length: 45 }, (_, i) => ({ speaker: i % 2 ? "Anna" : "you", text: `Earlier message ${i}. A thought worth keeping in view.`, spoken: false })))
+  await mockRoom(page, Array.from({ length: 45 }, (_, i) => ({ speaker: i % 2 ? "Steve" : "you", text: `Earlier message ${i}. A thought worth keeping in view.`, spoken: false })))
   let release: () => void = () => {}
   const held = new Promise<void>((resolve) => { release = resolve })
   await page.route("**/api/say", async (route) => { await held; await route.fulfill({ contentType: "text/event-stream", body: sse() }) })
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
   const box = page.getByRole("textbox", { name: "Message the room" })
-  await box.fill("Anna, one more thought.")
+  await box.fill("Steve, one more thought.")
   await box.press("Enter")
   const scroller = page.locator(".room-conversation > div").first()
-  await expect(page.getByRole("article", { name: "You said" }).filter({ hasText: "Anna, one more thought." })).toBeVisible()
+  await expect(page.getByRole("article", { name: "You said" }).filter({ hasText: "Steve, one more thought." })).toBeVisible()
   // Wait for the send-triggered resize/scroll cycle before simulating a reader
   // scrolling away. Otherwise a pending ResizeObserver can consume the gesture.
   await expect.poll(() => scroller.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop)).toBeLessThan(5)
@@ -221,7 +221,7 @@ test("reduced motion and a compact viewport keep the composer accessible", async
 })
 
 test("the chat has no automated accessibility violations", async ({ page }) => {
-  await mockRoom(page, [{ speaker: "Anna", text: "A clear thought, with room to breathe.", spoken: false }])
+  await mockRoom(page, [{ speaker: "Steve", text: "A clear thought, with room to breathe.", spoken: false }])
   await page.goto("/")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()

@@ -8,7 +8,7 @@ vi.mock("@/lib/group", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/group")>(),
   deliver: vi.fn(), forget: vi.fn(async () => 3), openChat: vi.fn(async () => {}),
 }))
-const group = ["Anna", "Jordan", "Pepe"].map((name) => ({ name, url: "http://localhost:9", key: "test" }))
+const group = ["Steve", "Jordan", "Pepe"].map((name) => ({ name, url: "http://localhost:9", key: "test" }))
 let db: ChallengeStore
 beforeEach(() => { db = new ChallengeStore(":memory:"); vi.clearAllMocks(); vi.spyOn(console, "info").mockImplementation(() => {}) })
 afterEach(() => { db.close(); vi.restoreAllMocks() })

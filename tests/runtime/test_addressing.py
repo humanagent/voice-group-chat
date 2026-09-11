@@ -37,8 +37,8 @@ def test_a_reply_to_the_agent_is_addressed_whatever_it_says() -> None:
 
 
 def test_a_message_opening_on_somebody_else_is_theirs() -> None:
-    assert addresses_another("Anna, do you know when the post office opens?", NAME)
-    assert addresses_another("Fabri: Anna, can you send me the link?", NAME)
+    assert addresses_another("Steve, do you know when the post office opens?", NAME)
+    assert addresses_another("Fabri: Steve, can you send me the link?", NAME)
 
 
 def test_a_message_opening_on_the_agent_is_not() -> None:
@@ -46,27 +46,27 @@ def test_a_message_opening_on_the_agent_is_not() -> None:
 
 
 def test_a_message_naming_somebody_else_first_is_theirs() -> None:
-    """"Anna, ask Pepe the time" is a request to Anna.
+    """"Steve, ask Pepe the time" is a request to Steve.
 
     Pepe answering it is the over-the-shoulder mistake one step removed, and it
-    costs twice: he answers, then Anna relays the question and he answers again,
+    costs twice: he answers, then Steve relays the question and he answers again,
     so the room gets the same reply from the same agent for one thing that was
     typed once.
     """
     for text in (
-        "hey ana ask pepe what time it is",
-        "Fabri: hey ana ask pepe what time it is",
-        "Anna, ask Pepe what time it is",
+        "hey steeve ask pepe what time it is",
+        "Fabri: hey steeve ask pepe what time it is",
+        "Steve, ask Pepe what time it is",
     ):
-        assert is_addressed(text, "Anna")
+        assert is_addressed(text, "Steve")
         assert not is_addressed(text, "Pepe")
         assert not is_addressed(text, "Jordan")
 
 
 def test_being_named_in_the_opening_still_counts() -> None:
     """The message can open on more than one person."""
-    for text in ("Anna and Pepe, come over", "Anna, Pepe, come over"):
-        assert is_addressed(text, "Anna")
+    for text in ("Steve and Pepe, come over", "Steve, Pepe, come over"):
+        assert is_addressed(text, "Steve")
         assert is_addressed(text, "Pepe")
         assert not is_addressed(text, "Jordan")
 
@@ -80,40 +80,40 @@ def test_an_opening_that_names_nobody_leaves_the_message_open() -> None:
 def test_the_sigil_outranks_the_vocative() -> None:
     """Someone deliberately pulling the agent into a message meant for another
     person is the one address never worth second-guessing."""
-    assert is_addressed("Anna, tell @agent to answer", "Pepe")
+    assert is_addressed("Steve, tell @agent to answer", "Pepe")
 
 
 def test_a_short_name_forgives_a_typo_when_it_is_being_called() -> None:
-    """"hey anaa" is Anna, misspelled.
+    """"hey steevee" is Steve, misspelled.
 
     Short names are exact everywhere else — "various people came" must not call
     Aria — but nothing shares the vocative slot: the word after a greeting is
     who is being greeted, so a letter out of place there is a typo, not a
     coincidence.
     """
-    assert is_addressed("hey anaa", "Anna")
-    assert is_addressed("hey anna", "Anna")
+    assert is_addressed("hey steevee", "Steve")
+    assert is_addressed("hey steve", "Steve")
     assert is_addressed("hey jordn", "Jordan")
-    assert not is_addressed("hey anaa", "Pepe")
+    assert not is_addressed("hey steevee", "Pepe")
 
 
 def test_a_head_that_is_not_a_list_of_people_calls_nobody() -> None:
-    """"hey everyone, I need ana" fits the vocative shape and is not one."""
-    assert is_addressed("hey everyone, I need ana", "Anna")
-    assert is_addressed("hey, ana", "Anna")
-    assert not is_addressed("hey everyone, I need ana", "Pepe")
+    """"hey everyone, I need steve" fits the vocative shape and is not one."""
+    assert is_addressed("hey everyone, I need steve", "Steve")
+    assert is_addressed("hey, steeve", "Steve")
+    assert not is_addressed("hey everyone, I need steve", "Pepe")
 
 
 def test_a_doubled_letter_still_addresses_it() -> None:
-    """"Ana" is how a transcriber listening in Spanish writes "Anna".
+    """"Steeve" is what a transcriber writes when the vowel was held.
 
-    Both spellings are the same sound, so which one comes back is a guess made
-    by whatever language model heard it. It is also how somebody types a name
-    they are unsure of, and how they type it when they are pleased to see her.
-    Without this, every one of these was silence.
+    A name called across a room arrives with a letter doubled, and which
+    spelling comes back is decided by whatever heard it. It is also how somebody
+    types a name they are unsure of, and how they type it when they are pleased
+    to see them. Without this, every one of these was silence.
     """
-    for text in ("Hi, Ana.", "ana, are you there?", "hey annna", "anaa!"):
-        assert is_addressed(text, "Anna"), text
+    for text in ("Hi, Steeve.", "steeve, are you there?", "hey steevee", "steevee!"):
+        assert is_addressed(text, "Steve"), text
 
 
 def test_a_doubled_letter_does_not_invent_a_name() -> None:
@@ -131,5 +131,5 @@ def test_a_squeezed_name_does_not_land_on_an_ordinary_word() -> None:
     assert not is_addressed("we need an extra runner", "Ann")
     assert not is_addressed("le monde is a newspaper", "Lee")
     # And the name it was written for still works.
-    assert is_addressed("we need an extra runner", "Anna") is False
-    assert is_addressed("Ana, can you take this?", "Anna")
+    assert is_addressed("we need an extra runner", "Steve") is False
+    assert is_addressed("Steeve, can you take this?", "Steve")

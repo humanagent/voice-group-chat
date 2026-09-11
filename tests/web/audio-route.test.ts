@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { GET } from "@/app/api/audio/route"
 import { forgetLimiters } from "@/lib/rate-limit"
 
-vi.mock("@/lib/agents", () => ({ agents: vi.fn(() => [{ name: "Anna", url: "http://a", key: "k" }]) }))
+vi.mock("@/lib/agents", () => ({ agents: vi.fn(() => [{ name: "Steve", url: "http://a", key: "k" }]) }))
 
 let root: string
 let clip: string
@@ -14,7 +14,7 @@ beforeEach(() => {
   forgetLimiters()
   root = mkdtempSync(join(tmpdir(), "room-clips-route-"))
   process.env.HERMES_GROUP_STATE = root
-  const home = join(root, ".hermes-anna", "cache", "audio")
+  const home = join(root, ".hermes-steve", "cache", "audio")
   mkdirSync(home, { recursive: true })
   clip = join(home, "tts_20260910_120000.mp3")
   writeFileSync(clip, "not really an mp3, but it is where one would be")
@@ -39,9 +39,9 @@ describe("serving a clip an agent made", () => {
 
   it("refuses a file from anywhere else, however it is spelled", async () => {
     expect((await ask(outsider)).status).toBe(403)
-    expect((await ask(join(root, ".hermes-anna", "cache", "audio", "..", "..", "..", "elsewhere.mp3"))).status).toBe(403)
+    expect((await ask(join(root, ".hermes-steve", "cache", "audio", "..", "..", "..", "elsewhere.mp3"))).status).toBe(403)
     expect((await ask("/etc/passwd")).status).toBe(400)
-    expect((await ask(join(root, ".hermes-anna", "cache", "audio", "notes.txt"))).status).toBe(400)
+    expect((await ask(join(root, ".hermes-steve", "cache", "audio", "notes.txt"))).status).toBe(400)
   })
 
   it("answers this room's pages and not a page somewhere else", async () => {
