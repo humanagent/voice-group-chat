@@ -13,7 +13,10 @@ export async function runChallenge({ run, group, message, speaker, store, signal
   const started = performance.now()
   try {
     const { failed } = await runRoomRound({ group, message, speaker, signal, emit,
-      remaining: () => run.status === "running" ? run.target - run.score : 0,
+      // No target to subtract a score from: a round keeps going while it is
+      // running, and stops the moment the store says it is not — finished,
+      // stopped, or expired by its own deadline between one reply and the next.
+      remaining: () => run.status === "running" ? Infinity : 0,
       replied: () => { run = store.increment(run.id); emit({ type: "challenge", run }) },
     })
     run = store.finish(run.id, failed ? "failed" : "quiet")

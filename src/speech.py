@@ -41,6 +41,20 @@ if not isinstance(model, str) or not model:
     raise RuntimeError(f"{SPEECH_FILE} has no `model`")
 TTS_MODEL: str = model
 
+# What language the room is told to expect, or None to let each request be
+# detected. See the file for why null is the decision and not the default.
+_language = _SPEECH.get("language")
+if _language is not None and (not isinstance(_language, str) or not _language.strip()):
+    raise RuntimeError(f"{SPEECH_FILE} has a `language` that is not a code")
+TTS_LANGUAGE: str | None = _language.strip() if isinstance(_language, str) else None
+
+# How loud somebody has to be before the room treats it as speech. Presentation
+# and cost, both in the browser; the Python does not capture audio.
+_gate = _SPEECH.get("gate", 0)
+if not isinstance(_gate, (int, float)) or isinstance(_gate, bool) or not 0 <= float(_gate) < 1:
+    raise RuntimeError(f"{SPEECH_FILE} has a `gate` that is not a level between 0 and 1")
+LISTEN_GATE: float = float(_gate)
+
 _voices = _SPEECH.get("voices")
 if not isinstance(_voices, list) or not _voices:
     raise RuntimeError(f"{SPEECH_FILE} has no `voices`")

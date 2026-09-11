@@ -3,19 +3,23 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ChallengeStore, challengeOwner } from "@/lib/challenge-store"
-import { CHALLENGE_DURATION_MS, isStanding, publicName } from "@/lib/challenge"
+import { DatabaseSync } from "node:sqlite"
+import { CHALLENGE_DURATION_MS, isStanding, publicName, replies } from "@/lib/challenge"
 
 const stores: ChallengeStore[] = []
 function store(path = ":memory:") { const db = new ChallengeStore(path); stores.push(db); return db }
 afterEach(() => { for (const db of stores.splice(0)) db.close() })
 
 describe("server-owned challenge scores", () => {
-  it("starts at zero, awards exactly 20 and cannot increment or downgrade a win", () => {
+  it("starts at zero, counts as high as the room gets, and stops counting when it ends", () => {
     const db = store()
     const run = db.create("owner", 100)
     expect(run.score).toBe(0)
-    for (let index = 1; index <= 30; index++) expect(db.increment(run.id, 101).score).toBe(Math.min(index, 20))
-    expect(db.finish(run.id, "stopped")).toMatchObject({ score: 20, status: "won" })
+    // Nothing at twenty, nothing at any number: the score is the count.
+    for (let index = 1; index <= 30; index++) expect(db.increment(run.id, 101).score).toBe(index)
+    expect(db.finish(run.id, "quiet")).toMatchObject({ score: 30, status: "quiet" })
+    // A reply that lands after the round is over is not a point.
+    expect(db.increment(run.id, 102).score).toBe(30)
     expect(db.scoreboard()).toEqual([])
   })
   it("requires the owner and a finished run; retries neither duplicate nor rename", () => {
@@ -27,7 +31,7 @@ describe("server-owned challenge scores", () => {
     expect(() => db.publish(run.id, "stranger", "Fake", 102)).toThrow("not found")
     db.publish(run.id, "owner", "Ada", 102)
     db.publish(run.id, "owner", "Changed", 103)
-    expect(db.scoreboard()).toEqual([{ id: expect.any(String), name: "Ada", score: 1, rank: 1, won: false }])
+    expect(db.scoreboard()).toEqual([{ id: expect.any(String), name: "Ada", score: 1, rank: 1 }])
     expect(db.scoreboard()[0].id).not.toBe(run.id)
     expect(JSON.stringify(db.scoreboard())).not.toContain("owner")
   })
@@ -109,6 +113,40 @@ describe("server-owned challenge scores", () => {
     expect(db.standing(db.create("nobody", when(70)).id)).toBeNull()
     expect(db.standing("missing")).toBeNull()
   })
+  it("lifts the ceiling off a board that was written with one", () => {
+    const folder = mkdtempSync(join(tmpdir(), "room-challenge-legacy-"))
+    const path = join(folder, "scores.sqlite")
+    try {
+      // The table exactly as the twenty-reply game created it, holding a win.
+      const legacy = new DatabaseSync(path)
+      legacy.exec(`
+        CREATE TABLE challenge_runs (
+          id TEXT PRIMARY KEY, owner TEXT NOT NULL, created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL, score INTEGER NOT NULL DEFAULT 0 CHECK(score BETWEEN 0 AND 20),
+          status TEXT NOT NULL DEFAULT 'running', entry_id TEXT UNIQUE, name TEXT, submitted_at INTEGER
+        );
+        INSERT INTO challenge_runs (id, owner, created_at, expires_at, score, status, entry_id, name, submitted_at)
+          VALUES ('old-win', 'owner', 100, 200, 20, 'won', 'old-entry', 'Ada', 150);
+        INSERT INTO challenge_runs (id, owner, created_at, expires_at, score, status)
+          VALUES ('old-quiet', 'other', 100, 200, 4, 'quiet');
+      `)
+      legacy.close()
+      const db = store(path)
+      // The score and its place survive; the title it carried does not.
+      expect(db.get("old-win")).toEqual({ id: "old-win", score: 20, status: "quiet", submitted: true })
+      expect(db.scoreboard()).toEqual([{ id: "old-entry", name: "Ada", score: 20, rank: 1 }])
+      expect(db.standing("old-win")).toEqual({ rank: 1, total: 1 })
+      expect(db.get("old-quiet")).toMatchObject({ score: 4, status: "quiet" })
+      // And the ceiling is gone rather than merely unenforced above.
+      const fresh = db.create("owner", 1000)
+      for (let index = 0; index < 21; index++) db.increment(fresh.id, 1000)
+      expect(db.get(fresh.id).score).toBe(21)
+      // Reopening does not migrate a second time or lose anything to it.
+      const again = store(path)
+      expect(again.scoreboard()).toHaveLength(1)
+      expect(again.get(fresh.id).score).toBe(21)
+    } finally { rmSync(folder, { recursive: true, force: true }) }
+  })
   it("stores only a hash of the secret browser token", () => {
     expect(challengeOwner("token")).toMatch(/^[a-f0-9]{64}$/)
     expect(challengeOwner("token")).not.toBe(challengeOwner("other"))
@@ -124,6 +162,14 @@ describe("a place on the board", () => {
   // a heading with no score under it, so it is not a place at all.
   it.each([null, {}, { rank: 0, total: 3 }, { rank: 4, total: 3 }, { rank: 1.5, total: 3 }, { rank: "1", total: 3 }, { rank: 1 }])
     ("rejects %s", (value) => expect(isStanding(value)).toBe(false))
+})
+
+describe("a score in words", () => {
+  // Said by the counter, the result and every row of the board, so it is said
+  // in one place.
+  it.each([[0, "0 replies"], [1, "1 reply"], [2, "2 replies"], [41, "41 replies"]])("calls %s %s", (score, said) => {
+    expect(replies(score)).toBe(said)
+  })
 })
 
 describe("public nicknames", () => {

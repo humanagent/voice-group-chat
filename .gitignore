@@ -18,6 +18,9 @@ node_modules/
 .hermes-*/
 group.json
 
+# a helper app bundle, built locally and never part of the repo
+mac/
+
 # the web app
 web/.next/
 web/test-results/

@@ -9,8 +9,14 @@ export type DictationState = {
 }
 export const idleDictation: DictationState = { status: "idle", text: "", receivedAt: 0, id: "" }
 type Connection = Pick<RealtimeConnection, "on" | "send" | "mute" | "commit" | "close">
+/** Whatever the connection's own `send` accepts: a chunk, held or forwarded. */
+type Chunk = Parameters<Connection["send"]>[0]
 type Dependencies = {
   token: (signal: AbortSignal, id: string) => Promise<string>
+  /** How loud a chunk has to be before it is worth sending, 0..1, or 0 for
+   *  everything. Read per chunk, because the room says what it is only once
+   *  the token request has answered. */
+  gate?: () => number
   connect: (token: string) => Connection
   changed: (state: DictationState) => void
   completed: (text: string) => void
@@ -27,6 +33,22 @@ const FLUSH_AUDIO_CHUNKS = 2
 const METER_WINDOW = 256
 // About four seconds of readings. The row on screen shows the tail of it.
 const METER_LENGTH = 256
+/**
+ * The gate's hysteresis, and its memory.
+ *
+ * One threshold with nothing around it chatters: a voice crosses it on every
+ * syllable and the gate slams between words, so the transcriber is handed
+ * confetti. Opening at the level and closing at half of it, a held moment after
+ * the last loud one, is what turns a threshold into a door.
+ *
+ * `PRE_ROLL` is why the first word survives. Speech starts quietly — the breath
+ * and the consonant are under the level that the vowel will cross — so the
+ * chunks from just before the gate opened are kept and sent with it. Two of
+ * them is about half a second at the SDK's chunk size.
+ */
+const GATE_HOLD_MS = 700
+const GATE_CLOSE_RATIO = 0.5
+const PRE_ROLL = 2
 
 /** One recording owns one microphone and one socket. Late callbacks cannot affect a new recording. */
 export class Dictation {
@@ -49,6 +71,11 @@ export class Dictation {
   private finishingAt = 0
   private flushChunks = 0
   private commitRequested = false
+  /** While this is in the future the gate is open. */
+  private openUntil = 0
+  /** The moments just before the gate opened, kept so the word that opened it
+   *  arrives whole. */
+  private preRoll: Chunk[] = []
 
   constructor(private deps: Dependencies) {}
 
@@ -66,20 +93,29 @@ export class Dictation {
     return this.meter
   }
 
+  /** The level a moment has to reach to be sent, for anybody drawing the meter:
+   *  a row of bars that does not show where the gate is looks broken when the
+   *  quiet ones change nothing. */
+  gate(): number {
+    return this.deps.gate?.() ?? 0
+  }
+
   /**
-   * RMS per window of PCM16, straight off the wire.
+   * RMS per window of PCM16, straight off the wire, and the loudest of them.
    *
    * Wrapped in its own try: a meter is decoration, and decoration must never
-   * cost a word. If the payload shape ever changes, the bars go flat and the
+   * cost a word. If the payload shape ever changes, the bars go flat, the gate
+   * opens (a measurement nobody could take is not evidence of silence) and the
    * transcription carries on.
    */
-  private measure(data: unknown): void {
+  private measure(data: unknown): number {
+    let loudest = 0
     try {
       // Both shapes the SDK has used: the documented envelope, and the bare
       // string. A meter that reads neither goes flat without saying so, which
       // looks exactly like a microphone that is not hearing you.
       const encoded = typeof data === "string" ? data : (data as { audioBase64?: unknown }).audioBase64
-      if (typeof encoded !== "string" || !encoded) return
+      if (typeof encoded !== "string" || !encoded) return 1
       const pcm = atob(encoded)
       const samples = pcm.length >> 1
       for (let start = 0; start < samples; start += METER_WINDOW) {
@@ -90,10 +126,45 @@ export class Dictation {
           const value = (((pcm.charCodeAt(i * 2 + 1) << 8) | pcm.charCodeAt(i * 2)) << 16) >> 16
           sum += value * value
         }
-        this.meter.push(Math.sqrt(sum / (end - start)) / 32768)
+        const level = Math.sqrt(sum / (end - start)) / 32768
+        loudest = Math.max(loudest, level)
+        this.meter.push(level)
       }
       if (this.meter.length > METER_LENGTH) this.meter.splice(0, this.meter.length - METER_LENGTH)
-    } catch { /* Decoration never costs a word. */ }
+    } catch {
+      // Decoration never costs a word — and neither does the gate: a moment
+      // nobody could measure goes to the transcriber rather than being called
+      // silent on the strength of a failed measurement.
+      return 1
+    }
+    return loudest
+  }
+
+  /**
+   * Whether this moment is somebody talking to the room.
+   *
+   * The room answers out loud, so on a phone the microphone hears the agents
+   * through the speaker along with everything else in the room, and a
+   * transcriber has no opinion about which of those it was meant to write down.
+   * This one does: under the level, the audio is measured for the meter and
+   * then dropped, and a chunk that never leaves the browser cannot be
+   * transcribed, charged for, or mistaken for a word.
+   *
+   * Wide open while finishing. A commit waits for the capture buffer to drain
+   * past `mute()`, and a gate that held the tail shut would hold the sentence
+   * with it.
+   */
+  private passes(level: number, now: number): boolean {
+    const gate = this.deps.gate?.() ?? 0
+    if (gate <= 0 || this.state.status === "finishing") return true
+    if (level >= gate) {
+      this.openUntil = now + GATE_HOLD_MS
+      return true
+    }
+    // Quieter, but not yet quiet: a held opening rides through the gaps inside
+    // a sentence instead of cutting it into pieces.
+    if (now < this.openUntil && level >= gate * GATE_CLOSE_RATIO) return true
+    return now < this.openUntil
   }
 
   private publish() { this.deps.changed({ ...this.state }) }
@@ -122,6 +193,8 @@ export class Dictation {
     this.revisions = 0
     this.flushChunks = 0
     this.commitRequested = false
+    this.openUntil = 0
+    this.preRoll = []
     this.started = performance.now()
     this.metric("dictation_start", 1)
     this.publish()
@@ -142,19 +215,35 @@ export class Dictation {
       // same count decides when the capture buffer has drained past `mute()`.
       // See "A gap in the realtime SDK" in the README.
       const send = connection.send.bind(connection)
-      connection.send = (data) => {
-        if (!current()) return
-        try { send(data) }
+      const forward = (data: Chunk) => {
+        try { send(data); return true }
         catch {
           this.fail("dictation_disconnect", "Transcription disconnected. Review the recovered text before sending.")
-          return
+          return false
         }
-        this.measure(data)
+      }
+      connection.send = (data) => {
+        if (!current()) return
+        const level = this.measure(data)
+        // Before the gate, always: this says the browser is capturing, which is
+        // true whether or not the room decides the moment is worth sending. A
+        // microphone that reads "connecting" until you shout is a broken one.
         if (!this.audioStarted) {
           this.audioStarted = true
           this.metric("dictation_audio_ready", performance.now() - this.started)
           this.activate()
         }
+        const now = performance.now()
+        if (!this.passes(level, now)) {
+          // Kept, not dropped: this is the half-second the next word starts in.
+          this.preRoll.push(data)
+          if (this.preRoll.length > PRE_ROLL) this.preRoll.shift()
+          return
+        }
+        const waiting = this.preRoll
+        this.preRoll = []
+        for (const held of waiting) if (!forward(held)) return
+        if (!forward(data)) return
         // The SDK batches 4096 samples at 16kHz (~256ms). After muting, let
         // the partial capture buffer and one silence buffer pass before commit.
         if (this.state.status === "finishing" && !this.commitRequested && ++this.flushChunks >= FLUSH_AUDIO_CHUNKS) {

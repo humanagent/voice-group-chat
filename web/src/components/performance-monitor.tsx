@@ -15,6 +15,17 @@ const labels: Partial<Record<MetricName, string>> = { frame_p95: "Frame interval
 const speechMetrics: MetricName[] = ["dictation_ready", "dictation_first_text", "dictation_render", "dictation_update_gap_max", "dictation_finalize", "dictation_updates", "dictation_revisions"]
 const speechLabels = ["Microphone ready", "First text from start", "Transcript render", "Longest update gap", "Finalize", "Text updates", "Partial revisions"]
 const speechErrors: MetricName[] = ["dictation_error", "dictation_connect_timeout", "dictation_finalize_timeout", "dictation_disconnect"]
+/**
+ * Whether the replies were heard, which is not the same question as whether they
+ * were played. A phone silences a decoded buffer with no error to show for it,
+ * so the panel carries the last thing the voice actually managed: unlocked,
+ * playing through the analyser, played as a media file instead, or refused
+ * outright by a context nothing had woken.
+ */
+const voiceOutcomes: Record<string, string> = {
+  voice_played: "Playing", voice_fallback: "Playing as a file", voice_blocked: "Blocked until a tap",
+  speech_error: "Unavailable", voice_ready: "Ready",
+}
 
 function report(metric: { name: string; value: number; id: string }) {
   if (metricNames.includes(metric.name as MetricName)) record(metric.name as MetricName, metric.value, metric.id)
@@ -26,6 +37,7 @@ function Diagnostics() {
   const recording = samples.findLast((item) => item.name.startsWith("dictation_") && item.id)
   const speech = recording ? samples.filter((item) => item.id === recording.id) : []
   const latestFailure = speech.findLast((item) => speechErrors.includes(item.name))
+  const voice = samples.findLast((item) => item.name in voiceOutcomes)
   const speechStatus = !recording ? "No recording yet" : latestFailure ? latestFailure.name.replace("dictation_", "").replaceAll("_", " ")
     : speech.some((item) => item.name === "dictation_complete") ? "Finalized"
     : speech.some((item) => item.name === "dictation_cancel") ? "Cancelled"
@@ -65,6 +77,7 @@ function Diagnostics() {
           })}
         </dl>
       </details>
+      <p className="mt-3 text-xs">Voice · {voice ? voiceOutcomes[voice.name] : "Nothing spoken yet"}</p>
       <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">Frame samples cover 2.5s after interaction. Vitals appear when the browser reports them. This visit only; no message content is collected.</p>
     </aside>
   )

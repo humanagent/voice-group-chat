@@ -1,6 +1,7 @@
 import { ElevenLabsError } from "@elevenlabs/elevenlabs-js"
 
-import { client, key } from "@/lib/elevenlabs"
+import { spendSession } from "@/lib/budget"
+import { client, key, LISTEN_GATE, speechOff, TTS_LANGUAGE } from "@/lib/elevenlabs"
 import { caller, limiter } from "@/lib/rate-limit"
 import { sameOrigin } from "@/lib/same-origin"
 
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
   let upstreamRequestId: string | undefined
   try {
     const apiKey = key()
-    if (!apiKey) {
+    if (!apiKey || speechOff()) {
       outcome = "not_configured"
       return Response.json({ error: "Voice is not configured." }, { status: 503, headers })
     }
@@ -52,6 +53,14 @@ export async function POST(request: Request) {
         status: 429, headers: { ...headers, "Retry-After": String(allowed.retryAfter) },
       })
     }
+    // A token becomes a transcription session, and a session is the unit this
+    // is billed in. Taken before minting, so the month cannot be spent by
+    // tokens that were handed out and then used.
+    const month = spendSession()
+    if (!month.ok) {
+      outcome = "budget_spent"
+      return Response.json({ error: "This room has listened its fill for the month." }, { status: 503, headers })
+    }
     // `realtime_scribe` is the SDK's own constant for this token type. The
     // string it stands for was worth a bug report once: the UI registry shipped
     // `scribe_realtime_v2` as a model id, the socket opened and the server
@@ -65,7 +74,15 @@ export async function POST(request: Request) {
       return Response.json({ error: "Transcription service unavailable." }, { status: 502, headers })
     }
     outcome = "ready"
-    return Response.json({ token: minted.token }, { headers })
+    // The language travels with the token rather than through four components
+    // of props: the server owns the decision, and this is the one request the
+    // browser already makes before it opens a microphone. Absent when the room
+    // is letting each session be detected, which is its default.
+    return Response.json({
+      token: minted.token,
+      ...(TTS_LANGUAGE ? { language: TTS_LANGUAGE } : {}),
+      ...(LISTEN_GATE > 0 ? { gate: LISTEN_GATE } : {}),
+    }, { headers })
   } catch (failure) {
     // The provider's status when it answered, and nothing it said. A body can
     // carry back what was submitted; a status and a request id cannot.

@@ -2,7 +2,6 @@
 
 import { useLayoutEffect, useRef } from "react"
 import { PlayIcon, TrophyIcon, XIcon } from "lucide-react"
-import { CHALLENGE_TARGET } from "@/lib/challenge"
 import { cycleDialogFocus } from "@/lib/dialog-focus"
 
 /** Rules only. Play hands off to the existing composer, never another recorder. */
@@ -19,8 +18,8 @@ export function ChallengeIntro({ ready, player, play, dismiss }: { ready: boolea
     <button className="icon-button result-close" aria-label="Close challenge" onClick={dismiss}><XIcon size={18} /></button>
     <div className="result-trophy"><TrophyIcon size={32} strokeWidth={1.5} aria-hidden="true" /></div>
     <h2 id="challenge-intro-title">Keep them talking</h2>
-    <p className="result-score" aria-label={`0 of ${CHALLENGE_TARGET} replies`}>0<span>/{CHALLENGE_TARGET}</span></p>
-    <p id="challenge-intro-rules">One prompt. Get the agents talking to each other.<br />Reach {CHALLENGE_TARGET} replies to win.</p>
+    <p className="result-score" aria-label="0 replies">0<span>replies</span></p>
+    <p id="challenge-intro-rules">One prompt. Every reply they give each other is a point.<br />No target: see how far the room gets.</p>
     <button ref={playButton} className="confirm-button" disabled={!ready} onClick={() => { dialog.current?.close(); play() }}><PlayIcon size={18} aria-hidden="true" />Play</button>
     {/* Both consequences of the button, in the order they happen: the
         microphone opens now, and the score goes on the public board at the end

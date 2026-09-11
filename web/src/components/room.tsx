@@ -6,7 +6,7 @@ import { ChallengeResult, Scoreboard } from "@/components/challenge-score"
 import { NameGate } from "@/components/name-gate"
 import { RoomTitle } from "@/components/room-title"
 import { ChallengeIntro } from "@/components/challenge-intro"
-import { CHALLENGE_PROMPT_LIMIT, CHALLENGE_TARGET, isChallengeRun, isStanding, type ChallengeRun, type Standing } from "@/lib/challenge"
+import { CHALLENGE_PROMPT_LIMIT, isChallengeRun, isStanding, replies, replyWord, type ChallengeRun, type Standing } from "@/lib/challenge"
 import { ChatMessage, type Line } from "@/components/chat-message"
 import { Composer, type ComposerHandle } from "@/components/composer"
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ui/conversation"
@@ -20,6 +20,20 @@ import { record, sampleFrames } from "@/lib/telemetry"
 import type { DictationState } from "@/lib/dictation"
 
 type Pending = { id: string; text: string; counted: boolean }
+
+/**
+ * The line before, as query parameters, or nothing.
+ *
+ * Long lines are left out rather than truncated: prosody needs the last breath
+ * before this one, and half a sentence is worse context than none. It is an
+ * improvement the server is free to ignore, so there is nothing to handle if it
+ * does.
+ */
+const CONTEXT_CHARS = 300
+function context(before: { agent: string; text: string; grant: string } | null): string {
+  if (!before || before.text.length > CONTEXT_CHARS) return ""
+  return `&previous=${encodeURIComponent(before.text)}&previousAgent=${encodeURIComponent(before.agent)}&previousGrant=${encodeURIComponent(before.grant)}`
+}
 
 export function Room({ names, speech, initialScoreboard = false }: { names: string[]; speech: boolean; initialScoreboard?: boolean }) {
   useRoomViewport()
@@ -49,11 +63,25 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   // Asked once, and only until it is answered or waved away. The room behind it
   // is the same room: closing the ask costs nothing but the name.
   const [asking, setAsking] = useState(true)
+  // Whether the ask is standing between somebody and the game they pressed. The
+  // trophy needs a name and used to be disabled for the want of one, which is a
+  // locked door with no sign on it; now it asks, and the answer opens the game.
+  const [afterName, setAfterName] = useState(false)
   const pwa = usePwa()
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const waiting = useRef<Pending[]>([])
   const draining = useRef(false)
   const voice = useRef<Voice | null>(null)
+  /**
+   * The last line the room said out loud, with the signature it said it under.
+   *
+   * Handed to the synthesiser as context for the next one: a voice that knows
+   * the sentence it is answering sounds like an answer. It travels with its own
+   * grant because it is text on its way to a provider, and the rule that the
+   * room only ever synthesises its own words does not get to lapse for the line
+   * beside the one being spoken.
+   */
+  const saidBefore = useRef<{ agent: string; text: string; grant: string } | null>(null)
   const round = useRef<AbortController | null>(null)
   const opener = useRef<AbortController | null>(null)
   const composer = useRef<ComposerHandle | null>(null)
@@ -84,6 +112,22 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   }, [])
 
   useEffect(() => { speechEnabled.current = speech }, [speech])
+  /**
+   * Sound is granted to a gesture, never to a page.
+   *
+   * A reply arrives seconds after the tap that asked for it, and by then there is
+   * no gesture left to play it under: the context stays suspended, the phone
+   * keeps the ring switch pointed at it, and three agents mouth their answers.
+   * So every tap and key in the room hands the voice its permission on the way
+   * past — in the capture phase, ahead of the handler that sends the prompt, and
+   * free after the first one.
+   */
+  useEffect(() => {
+    const prime = () => voice.current?.prime()
+    const gestures = ["pointerdown", "keydown"] as const
+    for (const gesture of gestures) window.addEventListener(gesture, prime, { capture: true, passive: true })
+    return () => { for (const gesture of gestures) window.removeEventListener(gesture, prime, { capture: true }) }
+  }, [])
   // eslint-disable-next-line react-hooks/set-state-in-effect -- storage exists only on the client
   useEffect(() => { setPlayer(readPlayer()); setKnown(true) }, [])
   // Every route to a name lands here — typed into the title, or typed once into
@@ -91,12 +135,13 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   // agent names is checked in one place rather than at each door.
   const rename = useCallback((name: string) => {
     const claimed = name.trim() ? playerName(name, names) : ""
-    if (claimed === null) return
+    if (claimed === null) return false
     setPlayer(claimed)
     writePlayer(claimed)
     // Clearing the name from the title is a decision, not an invitation to be
     // asked again in a dialog while the caret is still in the field.
     setAsking(false)
+    return !!claimed
   }, [names])
   /**
    * Everything the server says about the attempt, in one place.
@@ -212,7 +257,10 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
         else if (event.type === "said") {
           if (first) { record("first_reply", performance.now() - start); first = false }
           const spoken = speechEnabled.current && (speech || !!event.audio)
-          if (spoken) voice.current?.play(event.agent, event.audio ? `/api/audio?path=${encodeURIComponent(event.audio)}` : `/api/speak?agent=${encodeURIComponent(event.agent)}&text=${encodeURIComponent(event.text)}&grant=${encodeURIComponent(event.grant)}`)
+          if (spoken) voice.current?.play(event.agent, event.audio
+            ? `/api/audio?path=${encodeURIComponent(event.audio)}`
+            : `/api/speak?agent=${encodeURIComponent(event.agent)}&text=${encodeURIComponent(event.text)}&grant=${encodeURIComponent(event.grant)}${context(saidBefore.current)}`)
+          if (event.grant) saidBefore.current = { agent: event.agent, text: event.text, grant: event.grant }
           else show(event.agent, "speaking")
           setLines((current) => [...current, { id: crypto.randomUUID(), speaker: event.agent, text: event.text, spoken, animate: true }])
           sampleFrames()
@@ -279,9 +327,29 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   // Nothing reaches the room until it knows who is talking. A line with no name
   // on it is the thing this whole layer spent the night learning not to send.
   const canChallenge = !opening && !!chat && !busy && !listening && pwa.online && !!player && challengeRun?.status !== "running"
+  /**
+   * The cup opens whenever the room could hold a round — a missing name is not
+   * one of the reasons it cannot.
+   *
+   * A greyed trophy was the room's answer to "who are you?", and it answered a
+   * question nobody had asked in a place nobody could act on. The name is still
+   * required; it is now something the button collects on the way in rather than
+   * a condition it silently fails.
+   */
+  const canOpenChallenge = !opening && !!chat && !busy && !listening && pwa.online && challengeRun?.status !== "running"
 
   function openChallenge() {
-    if (canChallenge) setIntroOpen(true)
+    if (!canOpenChallenge) return
+    if (!player) { setAfterName(true); setAsking(true); return }
+    setIntroOpen(true)
+  }
+
+  /** The name, then the game it was asked for. Typed into the title, it is only
+   *  a name; typed on the way to the cup, it finishes the press that opened it. */
+  function claimName(name: string) {
+    const claimed = rename(name)
+    if (claimed && afterName) setIntroOpen(true)
+    setAfterName(false)
   }
 
   function startChallenge() {
@@ -320,14 +388,19 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
           <div>{scoreboard ? <h1>Challenge</h1> : <RoomTitle name={player} agents={names} rename={rename} />}{status && <p className="room-status" role="status">{status}</p>}</div>
           <nav className="room-actions" aria-label="Room modes">
             <button className="icon-button" onClick={showRoom} disabled={listening} aria-label={scoreboard ? "Back to the room" : "Room mode"} aria-current={!scoreboard ? "page" : undefined} title="Room"><MessagesSquareIcon size={18} /></button>
-            <button className="icon-button" onClick={openChallenge} disabled={!canChallenge} aria-label="Start challenge" title="Challenge"><TrophyIcon size={18} /></button>
+            <button className="icon-button" onClick={openChallenge} disabled={!canOpenChallenge} aria-label="Start challenge" title="Challenge"><TrophyIcon size={18} /></button>
             {/* The counter runs from Play, next to the cup that started it, and
                 for exactly as long as the attempt lasts. The score was only
                 ever visible in the modal that opened the round and the one that
-                closed it — between them, the game was played blind. */}
-            {attempt && <p className="challenge-meter" role="status" aria-label={`Challenge: ${score} of ${CHALLENGE_TARGET} replies`}>
-              <span className="meter-count"><b>{score}</b>/{CHALLENGE_TARGET}</span>
-              <i className="meter-track" aria-hidden="true"><i style={{ width: `${(score * 100) / CHALLENGE_TARGET}%` }} /></i>
+                closed it — between them, the game was played blind.
+
+                Nothing fills toward anything any more: there is no number to
+                reach, so the count is the whole meter. `key` on the digits is
+                the tick — each new score is a new element, and it arrives in
+                the room's own lilac before settling into ink. */}
+            {attempt && <p className="challenge-meter" role="status" aria-label={`Challenge: ${replies(score)}`}>
+              <b key={score}>{score}</b>
+              <small>{replyWord(score)}</small>
             </p>}
             <button className="icon-button" onClick={showScoreboard} disabled={listening} aria-label="Global scoreboard" aria-current={scoreboard ? "page" : undefined} title="Leaderboard"><ListOrderedIcon size={18} /></button>
             {!pwa.installed && (pwa.canInstall || pwa.ios) && <button className="icon-button" onClick={() => pwa.canInstall ? void pwa.install() : setInstallHelp(true)} aria-label="Install the room" title="Install the room"><ArrowDownToLineIcon size={18} /></button>}
@@ -352,13 +425,13 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
         </div>
         {scoreboard && (
           <footer className="composer-wrap challenge-footer challenge-start">
-            <button className="confirm-button" disabled={!canChallenge} onClick={openChallenge}>Play</button>
+            <button className="confirm-button" disabled={!canOpenChallenge} onClick={openChallenge}>Play</button>
             {savedAttempt && challengeRun.status !== "running" && <button className="saved-result-button" onClick={() => { setDismissedRun(null); setScoreboard(false) }}>View result</button>}
           </footer>
         )}
         <Composer ready={!!chat && !opening && !!player && challengeRun?.status !== "running" && (!counting || !busy)} online={pwa.online} busy={busy} speech={speech} submit={submit} stop={hush} handle={composer} recordingChanged={setRecording} reportError={setError} promptLimit={counting ? CHALLENGE_PROMPT_LIMIT : undefined} placeholder={player ? (counting ? "Your one prompt…" : undefined) : "Add your name above to start"} />
       </section>
-      {known && asking && !player && names.length > 0 && <NameGate agents={names} claim={rename} dismiss={() => setAsking(false)} />}
+      {known && asking && !player && names.length > 0 && <NameGate agents={names} claim={claimName} dismiss={() => { setAsking(false); setAfterName(false) }} />}
       {introOpen && <ChallengeIntro ready={canChallenge} player={player} play={startChallenge} dismiss={() => setIntroOpen(false)} />}
       {/* A result belongs to somebody. Without a name the room is still asking
           for one, and two dialogs on top of each other is nobody's answer. */}

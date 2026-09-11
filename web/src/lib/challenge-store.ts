@@ -2,10 +2,18 @@ import { createHash, randomUUID } from "node:crypto"
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { CHALLENGE_DURATION_MS, CHALLENGE_TARGET, type ChallengeRun, type ChallengeStatus, type ScoreEntry, type Standing } from "./challenge"
+import { CHALLENGE_DURATION_MS, type ChallengeRun, type ChallengeStatus, type ScoreEntry, type Standing } from "./challenge"
 import { stateRoot } from "./state"
 
 type Row = { id: string; owner: string; score: number; status: ChallengeStatus; entry_id: string | null }
+
+/** One definition of the table, so the rebuild below cannot drift from the
+ *  original. No ceiling on `score`: the game has no target to bound it. */
+const COLUMNS = `
+  id TEXT PRIMARY KEY, owner TEXT NOT NULL, created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL, score INTEGER NOT NULL DEFAULT 0 CHECK(score >= 0),
+  status TEXT NOT NULL DEFAULT 'running', entry_id TEXT UNIQUE, name TEXT, submitted_at INTEGER
+`
 export class ChallengeError extends Error {
   constructor(public readonly status: number, message: string) { super(message) }
 }
@@ -18,19 +26,53 @@ export class ChallengeStore {
     this.db.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA busy_timeout = 1000;
-      CREATE TABLE IF NOT EXISTS challenge_runs (
-        id TEXT PRIMARY KEY, owner TEXT NOT NULL, created_at INTEGER NOT NULL,
-        expires_at INTEGER NOT NULL, score INTEGER NOT NULL DEFAULT 0 CHECK(score BETWEEN 0 AND 20),
-        status TEXT NOT NULL DEFAULT 'running', entry_id TEXT UNIQUE, name TEXT, submitted_at INTEGER
-      );
+      CREATE TABLE IF NOT EXISTS challenge_runs (${COLUMNS});
+    `)
+    this.lift()
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS challenge_owner ON challenge_runs(owner, created_at DESC);
       CREATE INDEX IF NOT EXISTS challenge_created ON challenge_runs(created_at);
       CREATE UNIQUE INDEX IF NOT EXISTS challenge_active_owner ON challenge_runs(owner) WHERE status = 'running';
       CREATE INDEX IF NOT EXISTS challenge_scores ON challenge_runs(score DESC, submitted_at, entry_id) WHERE entry_id IS NOT NULL;
     `)
   }
+  /**
+   * Take the ceiling off a board that was built with one.
+   *
+   * The old table refused a score above twenty in a CHECK constraint and marked
+   * the run that reached it `won`. SQLite cannot drop a constraint, so the table
+   * is rebuilt: every score survives untouched, and a win becomes what it always
+   * was underneath — a round that ended with the room quiet. Runs at twenty keep
+   * their twenty and their place on the board; there is simply no longer a title
+   * attached to it.
+   *
+   * Rebuilt in one transaction, and only when the old shape is actually there, so
+   * a fresh database and an already-lifted one both pay a single query for it.
+   * The indexes are created after this returns, because dropping the old table
+   * takes its own with it.
+   */
+  private lift() {
+    const table = this.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'challenge_runs'").get() as { sql?: string } | undefined
+    // The ceiling itself, verbatim from the old definition — not just any CHECK,
+    // because the new table has one of its own and rebuilding on every open
+    // would be a migration that never ends.
+    if (!table?.sql?.includes("BETWEEN 0 AND 20")) return
+    this.db.exec("BEGIN IMMEDIATE")
+    try {
+      this.db.exec(`
+        CREATE TABLE challenge_runs_lifted (${COLUMNS});
+        INSERT INTO challenge_runs_lifted (id, owner, created_at, expires_at, score, status, entry_id, name, submitted_at)
+          SELECT id, owner, created_at, expires_at, score,
+            CASE status WHEN 'won' THEN 'quiet' ELSE status END,
+            entry_id, name, submitted_at FROM challenge_runs;
+        DROP TABLE challenge_runs;
+        ALTER TABLE challenge_runs_lifted RENAME TO challenge_runs;
+      `)
+      this.db.exec("COMMIT")
+    } catch (error) { this.db.exec("ROLLBACK"); throw error }
+  }
   private view(row: Row): ChallengeRun {
-    return { id: row.id, score: row.score, target: CHALLENGE_TARGET, status: row.status, submitted: !!row.entry_id }
+    return { id: row.id, score: row.score, status: row.status, submitted: !!row.entry_id }
   }
   private expire(now: number) {
     this.db.prepare("UPDATE challenge_runs SET status = 'timeout' WHERE status = 'running' AND expires_at <= ?").run(now)
@@ -52,7 +94,7 @@ export class ChallengeStore {
       const id = randomUUID()
       this.db.prepare("INSERT INTO challenge_runs (id, owner, created_at, expires_at) VALUES (?, ?, ?, ?)").run(id, owner, now, now + CHALLENGE_DURATION_MS)
       this.db.exec("COMMIT")
-      return { id, score: 0, target: CHALLENGE_TARGET, status: "running", submitted: false }
+      return { id, score: 0, status: "running", submitted: false }
     } catch (error) { this.db.exec("ROLLBACK"); throw error }
   }
   latest(owner: string, now = Date.now()): ChallengeRun | null {
@@ -65,15 +107,19 @@ export class ChallengeStore {
     if (!row) throw new ChallengeError(404, "Challenge not found.")
     return this.view(row)
   }
-  /** Called only by the runner after an actual spoken agent reply. */
+  /**
+   * Called only by the runner after an actual spoken agent reply.
+   *
+   * A point, and nothing else to decide: the round it belongs to stays running
+   * however high it goes, and only a run that is still running can take one — an
+   * attempt already timed out or stopped keeps the score it had.
+   */
   increment(id: string, now = Date.now()): ChallengeRun {
     this.expire(now)
-    this.db.prepare(`UPDATE challenge_runs SET score = score + 1,
-      status = CASE WHEN score + 1 = ? THEN 'won' ELSE 'running' END
-      WHERE id = ? AND status = 'running' AND score < ?`).run(CHALLENGE_TARGET, id, CHALLENGE_TARGET)
+    this.db.prepare("UPDATE challenge_runs SET score = score + 1 WHERE id = ? AND status = 'running'").run(id)
     return this.get(id)
   }
-  finish(id: string, status: Exclude<ChallengeStatus, "running" | "won">): ChallengeRun {
+  finish(id: string, status: Exclude<ChallengeStatus, "running">): ChallengeRun {
     this.db.prepare("UPDATE challenge_runs SET status = ? WHERE id = ? AND status = 'running'").run(status, id)
     return this.get(id)
   }
@@ -108,7 +154,7 @@ export class ChallengeStore {
   scoreboard(): ScoreEntry[] {
     return this.db.prepare(`SELECT entry_id AS id, name, score FROM challenge_runs
       WHERE entry_id IS NOT NULL ORDER BY score DESC, submitted_at ASC, entry_id ASC LIMIT 50`).all()
-      .map((row, index) => ({ id: String(row.id), name: String(row.name), score: Number(row.score), won: row.score === CHALLENGE_TARGET, rank: index + 1 }))
+      .map((row, index) => ({ id: String(row.id), name: String(row.name), score: Number(row.score), rank: index + 1 }))
   }
   close() { this.db.close() }
 }

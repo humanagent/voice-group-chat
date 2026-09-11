@@ -1,3 +1,6 @@
+import { keepAudible } from "./audio-session"
+import { record } from "./telemetry"
+
 /**
  * One voice at a time, and the orb moves with it.
  *
@@ -8,6 +11,14 @@
  *
  * In a group, who spoke after whom is most of the meaning. The harness gives
  * one speaker per turn; this holds that line across turns.
+ *
+ * On a phone all of that was inaudible, and the room had no idea. A browser tab
+ * may not make a sound before it has been touched, and on iOS a decoded buffer
+ * is silenced by the ring switch even after it may. So sound here is a thing the
+ * room asks for permission to make — once, from the first gesture, in `prime` —
+ * and every path that plays says so again before it starts. What is left is the
+ * failure that used to hide: a clip that cannot play now says which way it
+ * failed instead of leaving the room mouthing the words.
  */
 export type Speaking = { agent: string; level: () => number }
 
@@ -29,7 +40,14 @@ export class Voice {
   private context: AudioContext | null = null
   private analyser: AnalyserNode | null = null
   private bins = new Uint8Array(0)
+  /** Unlocked once, then reused: iOS grants permission to an element, not to a
+   *  page, so a new `Audio` per clip is a new refusal per clip. */
   private element: HTMLAudioElement | null = null
+  private silence: string | null = null
+  private unlocked = false
+  /** Ends the wait on whatever is playing, so leaving a room never leaves the
+   *  queue holding a promise nothing will resolve. */
+  private ending: (() => void) | null = null
   /** The line being said, its character timings, and the clock reading when it
    *  started. Together they are the answer to "how much of this has been
    *  spoken", which is what the transcript follows. */
@@ -70,6 +88,45 @@ export class Voice {
     return { agent: live.agent, said: live.said, spoken }
   }
 
+  /**
+   * Permission to make a sound, taken from the gesture that grants it.
+   *
+   * Every browser refuses audio to a page nobody has touched, and the refusal is
+   * silent: a context created outside a gesture starts suspended, `resume()`
+   * outside one is ignored, and a buffer scheduled on it plays to nothing — no
+   * error, no `ended`, and a queue that waits forever for a clip that never
+   * ran. That is what a room full of agents mouthing their replies was.
+   *
+   * The window a gesture opens is the gesture itself, so this has to be called
+   * from inside one and there is nothing to wait for afterwards. It wakes the
+   * context and spends a frame of silence on both routes out — the context and
+   * the element — because each is granted permission only by having made a sound
+   * while the finger was still down.
+   *
+   * What it deliberately does NOT do is claim the audio session. Every tap in
+   * the room comes through here, including the ones that end a recording, and
+   * telling the phone this page is playing media while its microphone is open is
+   * how you take the microphone away. The claim belongs to the moment a clip
+   * actually plays, which is where it is made.
+   *
+   * Cheap and idempotent: after the first gesture this is a state check.
+   */
+  prime = (): void => {
+    const context = this.wire()
+    if (!context) return
+    void context.resume().catch(() => {})
+    if (this.unlocked) return
+    this.unlocked = true
+    try {
+      const source = context.createBufferSource()
+      source.buffer = context.createBuffer(1, 1, 22_050)
+      source.connect(context.destination)
+      source.start()
+    } catch { /* A context with no `createBuffer` is a test double, and needs no unlocking. */ }
+    this.open()
+    record("voice_ready", 1)
+  }
+
   play(agent: string, url: string) {
     this.queue.push({ agent, url })
     this.warm()
@@ -86,10 +143,15 @@ export class Voice {
       // Already finished. Stopping a stopped source throws and means nothing.
     }
     this.source = null
+    // Paused, never discarded. The permission to play belongs to this element,
+    // and throwing it away means asking for it again on a page that can no
+    // longer be granted it.
     this.element?.pause()
-    this.element = null
     this.live = null
     this.playing = false
+    const ending = this.ending
+    this.ending = null
+    ending?.()
   }
 
   /**
@@ -170,14 +232,24 @@ export class Voice {
     // the moment it was asked for.
     this.onStart(clip.agent)
 
-    if (sound?.buffer && this.context && this.analyser) {
-      await this.context.resume().catch(() => {})
+    keepAudible()
+    if (sound?.buffer && this.context && this.analyser && await this.awake()) {
+      record("voice_played", 1)
+      const buffer = sound.buffer
       const source = this.context.createBufferSource()
-      source.buffer = sound.buffer
+      source.buffer = buffer
       source.connect(this.analyser)
       this.source = source
       await new Promise<void>((done) => {
-        source.onended = () => done()
+        let guard: ReturnType<typeof setTimeout> | undefined
+        const finish = () => { clearTimeout(guard); done() }
+        // Three ways out of a clip, and the room needs all of them. It ends, the
+        // room is emptied under it, or the audio thread walks off with it — a
+        // page backgrounded mid-sentence never fires `ended`, and every reply
+        // after it would queue behind a clip that finished minutes ago.
+        if (Number.isFinite(buffer.duration)) guard = setTimeout(finish, buffer.duration * 1000 + 4000)
+        this.ending = finish
+        source.onended = finish
         source.start()
         // Started, so the clock has a zero. Set after `start` and not before:
         // the reading it takes here is the one the audio thread will use.
@@ -188,6 +260,7 @@ export class Voice {
           from: this.context!.currentTime,
         }
       })
+      this.ending = null
       this.live = null
       this.source = null
     } else {
@@ -197,6 +270,29 @@ export class Voice {
     if (era !== this.era) return
     this.onEnd(clip.agent)
     void this.next()
+  }
+
+  /**
+   * Whether the context will actually play what it is handed.
+   *
+   * A suspended context accepts a buffer, schedules it, and plays it to nobody.
+   * `resume()` fixes that when the page has been touched and does nothing at all
+   * when it has not, which is why this asks afterwards rather than assuming. The
+   * answer decides between a voice with an orb behind it and a voice at all.
+   *
+   * A double with no `state` is treated as awake: the property is how a real
+   * context says it is not, and inventing a refusal for a test's silent context
+   * would send every browser test down the fallback.
+   */
+  private async awake(): Promise<boolean> {
+    const context = this.context
+    if (!context) return false
+    try { await context.resume() } catch { /* Refused outside a gesture; `state` says so below. */ }
+    if (context.state !== "suspended") return true
+    // Diagnosable rather than mysterious: the room is silent, and this is the
+    // reason it is silent, in the same panel as everything else that is timed.
+    record("voice_blocked", 1)
+    return false
   }
 
   /** One context and one analyser for the life of the room. */
@@ -216,28 +312,93 @@ export class Voice {
     }
   }
 
-  /** No Web Audio, or a clip it would not decode. It still plays; the orb just
-   *  will not move with it, and neither will the line. */
+  /**
+   * The route out of every reason the good one failed.
+   *
+   * No Web Audio, a clip it would not decode, or a context the platform will not
+   * wake. An element is the more forgiving of the two on a phone: it is media
+   * rather than synthesis, so iOS lets it past the ring switch, and it needs
+   * permission once instead of continuously. The orb will not move with it and
+   * neither will the line, which is the whole price — and a room that is heard
+   * and still beats a room that is watched.
+   */
   private async fallback(bytes: ArrayBuffer | null, url: string) {
     let made = ""
     try {
+      keepAudible()
       // The bytes if we got them, because the URL they came from answers JSON
       // and an audio element cannot play JSON.
       made = bytes ? URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" })) : ""
-      const audio = new Audio(made || url)
-      this.element = audio
+      const audio = this.element ??= new Audio()
+      audio.src = made || url
+      record("voice_fallback", 1)
       await audio.play()
       await new Promise<void>((done) => {
-        audio.onended = () => done()
+        const finish = () => { audio.onended = null; audio.onerror = null; done() }
+        this.ending = finish
+        audio.onended = finish
         // A clip that will not load must not strand the room in "speaking".
-        audio.onerror = () => done()
+        audio.onerror = finish
       })
+      this.ending = null
     } catch {
-      // Autoplay refused, or the file is gone. The line is already on screen.
+      // Refused, or the file is gone. The line is already on screen, and the
+      // panel now carries the reason nothing was heard.
+      record("speech_error", 1)
     }
     if (made) URL.revokeObjectURL(made)
-    this.element = null
   }
+
+  /**
+   * A frame of nothing, played on purpose.
+   *
+   * An element that has never played is an element iOS will refuse later, and
+   * "later" is a reply arriving over the network — as far from a finger as a
+   * moment gets. So it plays silence now, while the gesture is still live, and
+   * from then on it is an element that has played and may play again.
+   */
+  private open() {
+    try {
+      const audio = this.element ??= new Audio()
+      audio.preload = "auto"
+      audio.src = this.silence ??= URL.createObjectURL(new Blob([quiet()], { type: "audio/wav" }))
+      // Paused again only if it is still the silence: a reply that arrives in
+      // the meantime owns this element, and pausing that would be the bug this
+      // whole file is about.
+      void audio.play().then(() => {
+        if (audio.src !== this.silence) return
+        audio.pause()
+        audio.currentTime = 0
+      }).catch(() => {})
+    } catch { /* No media element here, which the analyser path does not need. */ }
+  }
+}
+
+/**
+ * One silent frame of WAV, header and all.
+ *
+ * Written out rather than pasted in as base64 so it can be read: 44 bytes of
+ * PCM header saying one 8kHz mono 16-bit channel, then one sample of zero. The
+ * shortest true sound a media element will accept, which is all it takes to
+ * turn a refusal into a permission.
+ */
+function quiet(): ArrayBuffer {
+  const bytes = new ArrayBuffer(46)
+  const view = new DataView(bytes)
+  const ascii = (at: number, text: string) => [...text].forEach((letter, i) => view.setUint8(at + i, letter.charCodeAt(0)))
+  ascii(0, "RIFF")
+  view.setUint32(4, 38, true)
+  ascii(8, "WAVEfmt ")
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, 8000, true)
+  view.setUint32(28, 16_000, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  ascii(36, "data")
+  view.setUint32(40, 2, true)
+  return bytes
 }
 
 /** Base64 to bytes. `atob` gives a string of char codes and nothing else will

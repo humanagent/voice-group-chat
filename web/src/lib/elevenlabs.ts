@@ -37,7 +37,20 @@ export function key(): string {
  * or dearer for reasons nobody could see, which is a reason for one file rather
  * than two that agree today.
  */
-export { TTS_MODEL } from "@/lib/speech"
+export { TTS_MODEL, TTS_LANGUAGE, LISTEN_GATE } from "@/lib/speech"
+
+/**
+ * A way to take the voice off the air without taking the key away.
+ *
+ * A deployed room holds a live key, and the only ways to stop it spending were
+ * to delete that key from the environment or to take the site down. Neither is
+ * something you do from a phone at midnight. `SPEECH_ENABLED=0` leaves the room
+ * running and the transcript intact, and the page stops offering a microphone
+ * rather than offering one that answers 503.
+ */
+export function speechOff(): boolean {
+  return (process.env.SPEECH_ENABLED ?? "").trim() === "0"
+}
 
 /**
  * The ElevenLabs client, held for as long as the key does not change.
