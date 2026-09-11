@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ArrowDownToLineIcon, ListOrderedIcon, MessagesSquareIcon, RefreshCwIcon, TrophyIcon, WifiOffIcon, XIcon } from "lucide-react"
+import { ArrowDownToLineIcon, EraserIcon, ListOrderedIcon, MessagesSquareIcon, RefreshCwIcon, TrophyIcon, WifiOffIcon, XIcon } from "lucide-react"
 import { ChallengeResult, Scoreboard } from "@/components/challenge-score"
+import { ClearRoom } from "@/components/clear-room"
 import { NameGate } from "@/components/name-gate"
 import { RoomTitle } from "@/components/room-title"
 import { ChallengeIntro } from "@/components/challenge-intro"
@@ -52,6 +53,10 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
   const [counting, setCounting] = useState(false)
   const [dismissedRun, setDismissedRun] = useState<string | null>(null)
   const [introOpen, setIntroOpen] = useState(false)
+  // Asked before anything is forgotten, because what this clears belongs to
+  // everybody in the room and to three agents who cannot be asked to remember
+  // it again.
+  const [confirmClear, setConfirmClear] = useState(false)
   // Empty until the browser is reachable: the server has no idea who is sitting
   // here, so rendering a name during SSR would hydrate into a different room.
   const [player, setPlayer] = useState("")
@@ -364,6 +369,43 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
     if (!composer.current?.startRecording()) setError("Voice is unavailable. You can type your prompt.")
   }
 
+  /**
+   * Forget this conversation, in the room and in all three agents.
+   *
+   * The transcript is the context: every agent reads the whole thing before
+   * deciding whether the last line was for it, so a room that has been running
+   * for a while is answering partly to things said an hour ago — and a name
+   * somebody used then is a name they will still be called now. Clearing it is
+   * the only way back to an empty room, which is why the action exists and why
+   * it asks first.
+   *
+   * The server deletes the session from every agent and opens the room again,
+   * so what comes back is the room as it is on a first visit rather than a
+   * half-deleted one. Everything that is not the conversation — the name, the
+   * board, the draft — is untouched.
+   */
+  async function clearRoom() {
+    setConfirmClear(false)
+    hush()
+    setOpening(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/room", { method: "DELETE" })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        setError(data.error || "The room couldn’t be cleared. Try again in a moment.")
+        setOpening(false)
+        return
+      }
+      setLines([])
+      setPhase({})
+      await open()
+    } catch {
+      setError("The room couldn’t be cleared. Check your connection and try again.")
+      setOpening(false)
+    }
+  }
+
   function showScoreboard() {
     // Never navigate/unmount a live attempt to inspect the ranking.
     setScoreboard(true)
@@ -402,6 +444,10 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
               <b key={score}>{score}</b>
               <small>{replyWord(score)}</small>
             </p>}
+            {/* Destructive, shared, and irreversible, so it is never the thing
+                that happens on a mis-tap: the press opens the question, and
+                the question has the answer on it. */}
+            <button className="icon-button" onClick={() => setConfirmClear(true)} disabled={!chat || opening || busy || listening || !pwa.online || challengeRun?.status === "running"} aria-label="Clear the room" title="Clear the room"><EraserIcon size={17} /></button>
             <button className="icon-button" onClick={showScoreboard} disabled={listening} aria-label="Global scoreboard" aria-current={scoreboard ? "page" : undefined} title="Leaderboard"><ListOrderedIcon size={18} /></button>
             {!pwa.installed && (pwa.canInstall || pwa.ios) && <button className="icon-button" onClick={() => pwa.canInstall ? void pwa.install() : setInstallHelp(true)} aria-label="Install the room" title="Install the room"><ArrowDownToLineIcon size={18} /></button>}
           </nav>
@@ -433,6 +479,7 @@ export function Room({ names, speech, initialScoreboard = false }: { names: stri
       </section>
       {known && asking && !player && names.length > 0 && <NameGate agents={names} claim={claimName} dismiss={() => { setAsking(false); setAfterName(false) }} />}
       {introOpen && <ChallengeIntro ready={canChallenge} player={player} play={startChallenge} dismiss={() => setIntroOpen(false)} />}
+      {confirmClear && <ClearRoom clear={clearRoom} dismiss={() => setConfirmClear(false)} />}
       {/* A result belongs to somebody. Without a name the room is still asking
           for one, and two dialogs on top of each other is nobody's answer. */}
       {!introOpen && !scoreboard && !busy && !listening && !!player && challengeRun && challengeRun.status !== "running" && dismissedRun !== challengeRun.id &&

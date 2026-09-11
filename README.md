@@ -14,6 +14,11 @@ A recording ends three ways: **✕** throws it away, **■** stops it and drops 
 transcript into the field to read, edit or abandon, and **↑** sends it as it
 stands. Only the last one spends a turn.
 
+The transcript is the context — every agent reads the whole thing before deciding
+whether the last line was for it — so the eraser in the header is how a room
+starts over: it asks once, then deletes the conversation from all three agents
+and from every screen that has the room open. Names, drafts and the board stay.
+
 For the frontend code walkthrough, credential-free tests and observability
 workflow, see the [developer guide](web/docs/developer-guide.md).
 
