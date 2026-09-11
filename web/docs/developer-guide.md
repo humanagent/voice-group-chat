@@ -114,6 +114,43 @@ Lifecycle counts include `dictation_start`, `dictation_complete` and
 `dictation_disconnect`, `dictation_connect_timeout`, `dictation_finalize_timeout`.
 Missing metrics stay missing; a failed recording is never labeled successful.
 
+### When the replies cannot be heard
+
+Silence has no error attached to it, so the panel carries a **Voice** line and
+`lib/speaking.ts` records what actually happened to a clip. The failure this
+diagnoses is a phone: a browser refuses audio to a page nobody has touched, and
+iOS additionally silences Web Audio while the ring switch is off — the room plays
+the clip, moves the orb, and nobody hears a word.
+
+| Metric | Means |
+| --- | --- |
+| `voice_ready` | A gesture woke the context and unlocked the media element. Every tap and key in the room does this; it is free after the first. |
+| `voice_played` | A decoded buffer started through the analyser: the normal path, and the only one the orb and the read-along line follow. |
+| `voice_fallback` | The buffer path was unavailable, so the clip played as a media file instead. Audible, without the orb or the line. |
+| `voice_blocked` | The context was still suspended when a clip was due, which means nothing was heard. Expect this only if a reply somehow arrives before any interaction. |
+| `speech_error` | Even the element refused, or the clip was gone. |
+
+`navigator.audioSession` is set to `playback` before anything plays and to
+`play-and-record` before the microphone opens (`lib/audio-session.ts`), which is
+what keeps a phone in silent mode audible without breaking capture. Browsers
+without the API ignore all of it and were never affected.
+
+### What a room may spend
+
+Three layers, and they answer different questions.
+
+| | |
+| --- | --- |
+| `lib/rate-limit.ts` | How fast. Per caller for fairness, and a ceiling over all of them that holds however many identities one attacker invents. The hard bound. |
+| `lib/budget.ts` | How much, per month. `SPEECH_MONTHLY_CHARACTERS` (200,000) and `SPEECH_MONTHLY_SESSIONS` (300), `0` for no ceiling, counted in SQLite beside the scoreboard and refused whole rather than half a line. A spend guard, not a security boundary: it fails open, because a room silenced by an unwritable file is a worse failure than the one it prevents. |
+| `lib/speech-cache.ts` | Whether to spend at all. The same voice, model, language, format and text is the same clip, so it is kept and replayed. `SPEECH_CACHE=0` turns it off. |
+
+`SPEECH_ENABLED=0` takes the voice off the air with the key still in place: the
+page stops offering a microphone rather than offering one that answers 503.
+
+A spent month logs `{"event":"speech.budget_spent","version":1,...}` with the
+numbers and nothing else, and the room carries on in text.
+
 For example, this is the **shape** of a server log, not a benchmark:
 
 ```json

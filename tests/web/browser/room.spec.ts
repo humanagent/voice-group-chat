@@ -185,7 +185,9 @@ test("the room will not send a line until it knows who is talking", async ({ pag
   await box.fill("Hola a todos")
   await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled()
   await expect(page.getByRole("button", { name: "Record a voice message" })).toBeDisabled()
-  await expect(page.getByRole("button", { name: "Start challenge" })).toBeDisabled()
+  // The cup is the exception, and deliberately so: it needs the name too, and
+  // it is the one control that can go and ask for it.
+  await expect(page.getByRole("button", { name: "Start challenge" })).toBeEnabled()
   // Enter is the path the buttons do not cover.
   await box.press("Enter")
   await expect(page.locator(".chat-message")).toHaveCount(0)

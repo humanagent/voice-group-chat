@@ -12,7 +12,7 @@ import type { ChallengeRun, Standing } from "../../../web/src/lib/challenge"
 const unnamed = (page: Page) => page.addInitScript(() => { try { localStorage.removeItem("room.player") } catch { /* private mode */ } })
 
 const id = "88b4b3f3-7cbb-4870-afc6-0a11cd2b35e0"
-const completed = (score: number): ChallengeRun => ({ id, score, target: 20, status: score === 20 ? "won" : "quiet", submitted: false })
+const completed = (score: number): ChallengeRun => ({ id, score, status: "quiet", submitted: false })
 const place: Standing = { rank: 4, total: 61 }
 function stream(run: ChallengeRun) {
   return [
@@ -26,7 +26,12 @@ function stream(run: ChallengeRun) {
 }
 
 /** Every route a scored round touches, and nothing that costs a provider call. */
-async function mocks(page: Page, score = 20, restored: ChallengeRun | null = null) {
+/**
+ * A round of any length, because there is no length a round is supposed to be.
+ * Twenty-four replies is the default here for exactly that reason: the old
+ * ceiling passes through the stream, the counter and the board untouched.
+ */
+async function mocks(page: Page, score = 24, restored: ChallengeRun | null = null) {
   let run = restored
   let standing: Standing | null = null
   let starts = 0
@@ -53,13 +58,13 @@ async function mocks(page: Page, score = 20, restored: ChallengeRun | null = nul
       run = { ...run!, submitted: true }
       standing = place
     }
-    await route.fulfill({ json: { run, standing, entries: standing ? [{ id: "public-entry", rank: 1, name: "Tester", score, won: score === 20 }] : [] } })
+    await route.fulfill({ json: { run, standing, entries: standing ? [{ id: "public-entry", rank: 1, name: "Tester", score }] : [] } })
   })
   return { starts: () => starts, posts: () => posts }
 }
 
 /** Land on the challenge page and take a round to the point of one prompt. */
-async function setup(page: Page, score = 20, restored: ChallengeRun | null = null) {
+async function setup(page: Page, score = 24, restored: ChallengeRun | null = null) {
   const round = await mocks(page, score, restored)
   await page.goto("/challenge")
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
@@ -73,25 +78,28 @@ async function setup(page: Page, score = 20, restored: ChallengeRun | null = nul
   return round
 }
 
-test("20 wins, publishes under the room's name and answers with a place", async ({ page }) => {
+test("a round counts as far as it gets, publishes under the room's name and answers with a place", async ({ page }) => {
   const round = await setup(page)
   // The counter runs from Play, beside the cup, and not only inside a modal.
-  await expect(page.getByLabel("Challenge: 0 of 20 replies")).toHaveText("0/20")
+  await expect(page.getByLabel("Challenge: 0 replies")).toBeVisible()
   await page.getByRole("textbox", { name: "Message the room" }).fill("Anna, ask everyone a question.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
-  await expect(page.getByLabel("20 of 20 replies")).toHaveText("20/20")
+  await expect(page.getByRole("heading", { name: "The room went quiet." })).toBeVisible()
+  // Past the number this game used to stop at, with nothing capping it.
+  await expect(page.getByLabel("24 replies")).toContainText("24")
   // Named at the door, so the end of the round has nothing to ask and nothing
   // to press: the score is already on the board, with the place it took.
   await expect(page.getByRole("dialog")).toContainText("#4 of 61 on the board")
   await expect(page.getByLabel("Your name")).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Publish score" })).toHaveCount(0)
   // The counter is finished, so it is gone from the header.
-  await expect(page.getByLabel("Challenge: 20 of 20 replies")).toHaveCount(0)
+  await expect(page.getByLabel("Challenge: 24 replies")).toHaveCount(0)
   expect(round.starts()).toBe(1)
   await page.getByRole("dialog").getByRole("button", { name: "See the board" }).click()
   await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("Tester")
-  await expect(page.getByText("Winner", { exact: true })).toBeVisible()
+  // A score, not a title: nobody wins a game that does not end.
+  await expect(page.getByRole("list", { name: "Global rankings" })).toContainText("24 replies")
+  await expect(page.getByText("Winner", { exact: true })).toHaveCount(0)
   await expect(page).toHaveURL(/\/challenge$/)
 })
 
@@ -99,14 +107,13 @@ test("Play again starts the next round in one press, with the counter back at ze
   const round = await setup(page, 3)
   await page.getByRole("textbox", { name: "Message the room" }).fill("Ask everyone their age.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
-  await expect(page.getByLabel("3 of 20 replies")).toHaveText("3/20")
-  await expect(page.getByRole("heading", { name: "Round finished" })).toBeVisible()
-  await expect(page.getByText("You won!")).toHaveCount(0)
+  await expect(page.getByLabel("3 replies")).toContainText("3")
+  await expect(page.getByRole("heading", { name: "The room went quiet." })).toBeVisible()
   await expect(page.getByRole("dialog")).toContainText("#4 of 61 on the board")
   // No rules to read again, no second dialog: one press is back in the game.
   await page.getByRole("button", { name: "Play again" }).click()
   await expect(page.getByRole("dialog")).toHaveCount(0)
-  await expect(page.getByLabel("Challenge: 0 of 20 replies")).toHaveText("0/20")
+  await expect(page.getByLabel("Challenge: 0 replies")).toBeVisible()
   await expect(page.getByRole("textbox", { name: "Message the room" })).toBeEditable()
   await expect(page.getByText("Next prompt counts", { exact: true })).toBeVisible()
   await expect(page.getByRole("progressbar")).toHaveCount(0)
@@ -118,8 +125,8 @@ test("Play again starts the next round in one press, with the counter back at ze
 
 test("a round with nothing said is not published, and says what to try instead", async ({ page }) => {
   const round = await setup(page, 0, completed(0))
-  await expect(page.getByRole("heading", { name: "Round finished" })).toBeVisible()
-  await expect(page.getByLabel("0 of 20 replies")).toHaveText("0/20")
+  await expect(page.getByRole("heading", { name: "The room went quiet." })).toBeVisible()
+  await expect(page.getByLabel("0 replies")).toContainText("0")
   await expect(page.getByRole("dialog")).toContainText("No replies to count")
   await expect(page.getByRole("dialog")).not.toContainText("on the board")
   // Nobody wants their name on a board for a round where nothing was said.
@@ -128,7 +135,7 @@ test("a round with nothing said is not published, and says what to try instead",
 
 test("a reload neither repeats the prompt nor publishes the same score twice", async ({ page }) => {
   const round = await setup(page, 20, completed(20))
-  await expect(page.getByRole("heading", { name: "You won!" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "The room went quiet." })).toBeVisible()
   await expect(page.getByRole("dialog")).toContainText("#4 of 61 on the board")
   await page.reload()
   await expect(page.getByRole("heading", { name: "Global scoreboard" })).toBeVisible()
@@ -152,9 +159,9 @@ test("a score that cannot reach the board is kept, with a way back to it", async
   })
   await page.goto("/challenge")
   await page.getByRole("button", { name: "View result", exact: true }).click()
-  const result = page.getByRole("dialog", { name: "Round finished" })
+  const result = page.getByRole("dialog", { name: "The room went quiet." })
   await expect(result).toContainText("The challenge is unavailable.")
-  await expect(page.getByLabel("6 of 20 replies")).toHaveText("6/20")
+  await expect(page.getByLabel("6 replies")).toContainText("6")
   await result.getByRole("button", { name: "Try again" }).click()
   await expect(result).toContainText("#4 of 61 on the board")
   expect(round.starts()).toBe(0)
@@ -206,7 +213,7 @@ test("Challenge always explains the game; dismissing the intro never records or 
     await page.getByRole("button", { name: "Start challenge" }).click()
     const intro = page.getByRole("dialog", { name: "Keep them talking" })
     await expect(intro).toBeVisible()
-    await expect(intro.getByLabel("0 of 20 replies")).toHaveText("0/20")
+    await expect(intro.getByLabel("0 replies")).toContainText("0")
     // The two consequences of the button, said before it is pressed.
     await expect(intro).toContainText("published as Tester")
     await expect(intro.getByRole("button", { name: "Play", exact: true })).toBeFocused()
@@ -229,7 +236,8 @@ test("the first visit asks who is playing, and a saved result waits for the answ
   // The agents in this room, by name: the reason the question is being asked.
   await expect(gate).toContainText("Anna, Jordan and Pepe")
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeDisabled()
+  // Play is live without a name, because the dialog in front of it is the ask.
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled()
   // An agent's name would take that agent out of its own audience.
   await gate.getByLabel("Your name").fill("Anna")
   await gate.getByRole("button", { name: "Enter the room" }).click()
@@ -240,7 +248,32 @@ test("the first visit asks who is playing, and a saved result waits for the answ
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled()
   // Named, the result it was holding publishes itself under that name.
   await page.getByRole("button", { name: "View result", exact: true }).click()
-  await expect(page.getByRole("dialog", { name: "Round finished" })).toContainText("#4 of 61 on the board")
+  await expect(page.getByRole("dialog", { name: "The room went quiet." })).toContainText("#4 of 61 on the board")
+})
+
+test("the cup asks for the name it needs, then opens the game on the answer", async ({ page }) => {
+  await unnamed(page)
+  const round = await mocks(page)
+  await page.goto("/")
+  await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
+  const gate = page.getByRole("dialog", { name: "Who’s playing?" })
+  await expect(gate).toBeVisible()
+  // Waved away, so the room is the room again — and the cup is still a live
+  // button rather than the greyed answer to a question nobody asked.
+  await page.keyboard.press("Escape")
+  await expect(gate).toHaveCount(0)
+  const trophy = page.getByRole("button", { name: "Start challenge" })
+  await expect(trophy).toBeEnabled()
+  await trophy.click()
+  await expect(gate).toBeVisible()
+  await gate.getByLabel("Your name").fill("Tester")
+  await gate.getByRole("button", { name: "Enter the room" }).click()
+  // One press, one answer, and the game it was pressed for.
+  const intro = page.getByRole("dialog", { name: "Keep them talking" })
+  await expect(intro).toBeVisible()
+  await expect(intro.getByRole("button", { name: "Play", exact: true })).toBeEnabled()
+  await expect(intro).toContainText("published as Tester")
+  expect(round.starts()).toBe(0)
 })
 
 test("a late saved-result response cannot replace an input the player has tapped", async ({ page }) => {
@@ -291,7 +324,7 @@ test("the name and result dialogs fit a narrow keyboard-height viewport and are 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   await page.setViewportSize({ width: 320, height: 568 })
-  await page.screenshot({ path: info.outputPath("challenge-won.png") })
+  await page.screenshot({ path: info.outputPath("challenge-result.png") })
 })
 
 test("a second prompt cannot be sent while an attempt is running", async ({ page }) => {
@@ -317,7 +350,7 @@ test("a second prompt cannot be sent while an attempt is running", async ({ page
   await page.getByRole("textbox", { name: "Message the room" }).press("Enter")
   expect(starts).toBe(1)
   release()
-  await expect(page.getByRole("heading", { name: "Round finished" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "The room went quiet." })).toBeVisible()
 })
 
 test("result traps focus, Escape continues the same room, and only Play starts counting", async ({ page }) => {
@@ -327,7 +360,7 @@ test("result traps focus, Escape continues the same room, and only Play starts c
   await input.press("Enter")
   const modal = page.getByRole("dialog")
   await expect(modal).toBeVisible()
-  await expect(page.getByLabel("2 of 20 replies")).toHaveText("2/20")
+  await expect(page.getByLabel("2 replies")).toContainText("2")
   await expect(modal.getByRole("button", { name: "Back to the room" })).toBeFocused()
   // Playing again spends a round; it never happens by pressing Enter on arrival.
   await expect(page.getByRole("button", { name: "Play again" })).not.toBeFocused()

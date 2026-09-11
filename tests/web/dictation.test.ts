@@ -2,15 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RealtimeEvents, type RealtimeConnection } from "@elevenlabs/client"
 import { Dictation } from "@/lib/dictation"
 
-function setup() {
+function setup(gate = 0) {
   const listeners = new Map<string, (data: never) => void>()
+  // The chunks that actually left, which after `start` is a different function
+  // from `connection.send`: the recorder wraps that one, and the wrapper is
+  // where the gate lives.
+  const sent = vi.fn()
   const connection = {
     on: (event: string, listener: (data: never) => void) => { listeners.set(event, listener) },
-    send: vi.fn(), mute: vi.fn(), commit: vi.fn(), close: vi.fn(),
+    send: sent, mute: vi.fn(), commit: vi.fn(), close: vi.fn(),
   } satisfies Pick<RealtimeConnection, "on" | "send" | "mute" | "commit" | "close">
   const deps = {
     token: vi.fn(async () => "test-only-token"), connect: vi.fn(() => connection),
     changed: vi.fn(), completed: vi.fn(), failed: vi.fn(), metric: vi.fn(),
+    gate: () => gate,
   }
   const dictation = new Dictation(deps)
   function emit(event: RealtimeEvents, data = {}) { listeners.get(event)?.(data as never) }
@@ -20,7 +25,7 @@ function setup() {
     emit(RealtimeEvents.SESSION_STARTED)
     audio()
   }
-  return { dictation, deps, connection, emit, audio, start }
+  return { dictation, deps, connection, sent, emit, audio, start }
 }
 
 /** PCM16, little-endian, exactly as the SDK sends it. */
@@ -189,5 +194,92 @@ describe("the loudness meter", () => {
     dictation.cancel()
     await dictation.start()
     expect(dictation.levels()).toEqual([])
+  })
+})
+
+/**
+ * Loud enough to be somebody talking into the microphone, and quiet enough to
+ * be the room. RMS of a constant sample is the sample, so these are exact.
+ */
+const LOUD = () => ({ audioBase64: pcm(Array(512).fill(0.3 * 32768)) })
+const QUIET = () => ({ audioBase64: pcm(Array(512).fill(0.01 * 32768)) })
+
+describe("the gate", () => {
+  it("measures the quiet moments and never sends them", async () => {
+    const { dictation, connection, sent, emit } = setup(0.08)
+    await dictation.start()
+    emit(RealtimeEvents.SESSION_STARTED)
+    connection.send(QUIET())
+    connection.send(QUIET())
+    connection.send(QUIET())
+    expect(sent).not.toHaveBeenCalled()
+    // Still listening, though: the browser is capturing whether or not the room
+    // thinks the moment is worth sending, and a microphone that reads
+    // "connecting" until you shout is a broken one.
+    expect(dictation.levels().length).toBeGreaterThan(0)
+    dictation.cancel()
+  })
+
+  it("keeps the moment before it opened, so the first word arrives whole", async () => {
+    const { dictation, connection, sent, emit } = setup(0.08)
+    await dictation.start()
+    emit(RealtimeEvents.SESSION_STARTED)
+    connection.send(QUIET())
+    connection.send(QUIET())
+    expect(sent).not.toHaveBeenCalled()
+    connection.send(LOUD())
+    // The loud one and the two held before it: a sentence starts under the
+    // level it will cross a syllable later.
+    expect(sent).toHaveBeenCalledTimes(3)
+    dictation.cancel()
+  })
+
+  it("holds the opening through the gaps inside a sentence", async () => {
+    const { dictation, connection, sent, emit } = setup(0.08)
+    await dictation.start()
+    emit(RealtimeEvents.SESSION_STARTED)
+    connection.send(LOUD())
+    sent.mockClear()
+    connection.send(QUIET())
+    expect(sent).toHaveBeenCalledTimes(1)
+    // Long after the last loud moment, it is closed again.
+    vi.advanceTimersByTime(1500)
+    connection.send(QUIET())
+    expect(sent).toHaveBeenCalledTimes(1)
+    dictation.cancel()
+  })
+
+  it("opens wide to finish, so the tail is not held shut with the sentence", async () => {
+    const { dictation, connection, sent, emit } = setup(0.08)
+    await dictation.start()
+    emit(RealtimeEvents.SESSION_STARTED)
+    connection.send(LOUD())
+    vi.advanceTimersByTime(1500)
+    sent.mockClear()
+    dictation.finish()
+    connection.send(QUIET())
+    connection.send(QUIET())
+    expect(sent).toHaveBeenCalledTimes(2)
+    expect(connection.commit).toHaveBeenCalled()
+    dictation.cancel()
+  })
+
+  it("sends everything when the room has no gate", async () => {
+    const { dictation, connection, sent, emit } = setup(0)
+    await dictation.start()
+    emit(RealtimeEvents.SESSION_STARTED)
+    connection.send(QUIET())
+    connection.send(QUIET())
+    expect(sent).toHaveBeenCalledTimes(2)
+    dictation.cancel()
+  })
+
+  it("sends a moment it could not measure rather than calling it silence", async () => {
+    const { dictation, connection, sent, emit } = setup(0.08)
+    await dictation.start()
+    emit(RealtimeEvents.SESSION_STARTED)
+    connection.send({ audioBase64: "not base64 at all !!" })
+    expect(sent).toHaveBeenCalledTimes(1)
+    dictation.cancel()
   })
 })

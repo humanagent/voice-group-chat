@@ -24,10 +24,21 @@ async function showLatest(page: Page) {
   await expect(page.getByRole("button", { name: "Jump to latest messages" })).toHaveCount(0)
 }
 
-for (const score of [2, 20]) {
-  test(`centered trophy result ${score}/20`, async ({ page }, info) => {
+test("the composer field is never small enough for iOS to zoom the room", async ({ page }) => {
+  // 16px is the threshold Safari zooms below, and the room does not zoom. It is
+  // set in one media query with several other phone rules, which is exactly the
+  // kind of rule that goes missing when that block is edited.
+  for (const width of [320, 390, 430, 640]) {
+    await page.setViewportSize({ width, height: 780 })
+    await openRoom(page)
+    await expect(page.getByRole("textbox", { name: "Message the room" })).toHaveCSS("font-size", "16px")
+  }
+})
+
+for (const score of [1, 37]) {
+  test(`centered trophy result of ${score}`, async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    const run = { id: "3f1a58e6-1c94-4f5e-9f0f-5a2d9d3b7c11", score, target: 20, status: score === 20 ? "won" : "quiet", submitted: false }
+    const run = { id: "3f1a58e6-1c94-4f5e-9f0f-5a2d9d3b7c11", score, status: "quiet", submitted: false }
     await page.route("**/api/challenge", (route) => route.fulfill({ json: { run, standing: null } }))
     // The saved result publishes itself and settles on its place: that is the
     // dialog people actually see, so that is the one measured here.
@@ -37,7 +48,9 @@ for (const score of [2, 20]) {
     await openRoom(page)
     const modal = page.getByRole("dialog")
     await expect(modal).toBeVisible()
-    await expect(page.getByLabel(`${score} of 20 replies`)).toHaveText(`${score}/20`)
+    // A one-reply round says "1 reply", and a long one has no denominator to
+    // measure itself against.
+    await expect(page.getByLabel(`${score} ${score === 1 ? "reply" : "replies"}`)).toContainText(String(score))
     await expect(modal).toContainText("#3 of 48 on the board")
     const rect = (await modal.boundingBox())!
     expect(rect.x + rect.width / 2).toBeCloseTo(195, 0)
@@ -175,8 +188,8 @@ test("challenge scoreboard and play share an edge-to-edge mobile shell", async (
   // opening a microphone or connecting to a paid provider.
   await page.route("**/api/scribe", () => {})
   await page.route("**/api/challenge/scoreboard", (route) => route.fulfill({ json: { entries: [
-    { id: "first", rank: 1, name: "Alex", score: 20, won: true },
-    { id: "second", rank: 2, name: "Sam", score: 14, won: false },
+    { id: "first", rank: 1, name: "Alex", score: 31 },
+    { id: "second", rank: 2, name: "Sam", score: 14 },
   ] } }))
   await page.goto("/challenge")
   const play = page.getByRole("button", { name: "Play", exact: true })
@@ -189,7 +202,7 @@ test("challenge scoreboard and play share an edge-to-edge mobile shell", async (
   await play.click()
   const intro = page.getByRole("dialog", { name: "Keep them talking" })
   await expect(intro).toBeVisible()
-  await expect(intro.getByLabel("0 of 20 replies")).toHaveText("0/20")
+  await expect(intro.getByLabel("0 replies")).toContainText("0")
   if (info.project.name === "visual") await expect(page).toHaveScreenshot("challenge-intro.png")
   await intro.getByRole("button", { name: "Play", exact: true }).click()
   await expect(page.getByRole("dialog")).toHaveCount(0)

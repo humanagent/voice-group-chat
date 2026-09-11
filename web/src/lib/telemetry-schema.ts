@@ -3,6 +3,7 @@ export const metricNames = [
   "long_task", "room_ready", "first_reply", "round_duration",
   "runtime_error", "unhandled_rejection", "room_error", "stream_error",
   "speech_error", "pwa_error",
+  "voice_ready", "voice_played", "voice_blocked", "voice_fallback",
   "dictation_start", "dictation_token", "dictation_session", "dictation_audio_ready", "dictation_ready",
   "dictation_first_text", "dictation_render", "dictation_update_gap_max", "dictation_updates", "dictation_revisions",
   "dictation_finalize", "dictation_complete", "dictation_cancel", "dictation_error",

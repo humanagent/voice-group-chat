@@ -31,12 +31,29 @@ describe("one-prompt challenge runner", () => {
     expect(forget).not.toHaveBeenCalled()
     expect(JSON.stringify(vi.mocked(console.info).mock.calls)).not.toContain("private prompt")
   })
-  it("stops at 20, including agent-to-agent replies, without extra paid turns", async () => {
-    vi.mocked(deliver).mockImplementation(async (_agent, _chat, speaker) => speaker === "System" ? { spoke: false } : { spoke: true, text: "And you?", audio: null })
+  it("counts agent-to-agent replies with no ceiling, and ends when the room does", async () => {
+    // Twenty-five replies, then everybody has said their piece. The old game
+    // stopped at twenty whatever happened next; this one stops when they do.
+    let answers = 25
+    vi.mocked(deliver).mockImplementation(async (_agent, _chat, speaker) =>
+      speaker === "System" || answers-- <= 0 ? { spoke: false } : { spoke: true, text: "And you?", audio: null })
     const { result, events } = await run()
-    expect(result).toMatchObject({ score: 20, status: "won" })
-    expect(deliver).toHaveBeenCalledTimes(20)
-    expect(events.filter((event) => event.type === "said")).toHaveLength(20)
+    expect(result).toMatchObject({ score: 25, status: "quiet" })
+    expect(events.filter((event) => event.type === "said")).toHaveLength(25)
+  })
+  it("stops the moment the stored attempt does, whatever is still being said", async () => {
+    // The deadline, a stop, a crash recovery: every one of them reaches the
+    // runner as a stored run that is no longer running, and nothing after it
+    // costs a paid turn.
+    let replies = 0
+    vi.mocked(deliver).mockImplementation(async (_agent, _chat, speaker) => {
+      if (speaker === "System") return { spoke: false }
+      if (++replies === 4) db.finish(db.latest("owner")!.id, "stopped")
+      return { spoke: true, text: "Still talking", audio: null }
+    })
+    const { result } = await run()
+    expect(result).toMatchObject({ score: 3, status: "stopped" })
+    expect(deliver).toHaveBeenCalledTimes(5)
   })
   it("does not count failed replies or reveal provider failures", async () => {
     vi.mocked(deliver).mockImplementation(async (_agent, _chat, speaker) => speaker === "System" ? { spoke: false } : { spoke: false, error: "private-provider-key" })

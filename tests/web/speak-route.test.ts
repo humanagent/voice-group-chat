@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { ElevenLabsError } from "@elevenlabs/elevenlabs-js"
 import { GET } from "@/app/api/speak/route"
+import { forgetBudget, MONTHLY_CHARACTERS } from "@/lib/budget"
 import { forgetLimiters } from "@/lib/rate-limit"
 import { grantFor } from "@/lib/speech-grant"
 
@@ -21,8 +25,14 @@ function ask(params: Record<string, string>, headers: Record<string, string> = {
 }
 const spoken = () => ({ agent: "Anna", text: LINE, grant: grantFor("Anna", LINE) })
 
+let root: string
 beforeEach(() => {
   forgetLimiters()
+  // The cache and the month's allowance are both files. Given nowhere of their
+  // own they would be the developer's real ones.
+  root = mkdtempSync(join(tmpdir(), "room-speak-"))
+  process.env.HERMES_GROUP_STATE = root
+  forgetBudget()
   vi.clearAllMocks()
   upstream.convertWithTimestamps.mockResolvedValue({
     audioBase64: "AAAA",
@@ -33,7 +43,14 @@ beforeEach(() => {
     },
   })
 })
-afterEach(() => { vi.restoreAllMocks() })
+afterEach(() => {
+  forgetBudget()
+  rmSync(root, { recursive: true, force: true })
+  delete process.env.HERMES_GROUP_STATE
+  delete process.env[MONTHLY_CHARACTERS]
+  delete process.env.SPEECH_ENABLED
+  vi.restoreAllMocks()
+})
 
 describe("speaking a line the room said", () => {
   it("synthesises it and returns the timings the transcript follows", async () => {
@@ -52,7 +69,10 @@ describe("speaking a line the room said", () => {
     const [voiceId, body, options] = upstream.convertWithTimestamps.mock.calls[0]
     expect(voiceId).toMatch(/^[A-Za-z0-9]{20}$/)
     expect(voiceId).not.toBe("somebody-elses-voice")
-    expect(body).toEqual({ text: LINE, modelId: TTS_MODEL })
+    // Half the bytes of the default at the same sample rate: this is base64 in
+    // JSON on its way down a phone network, and nobody hears the difference
+    // through a phone speaker.
+    expect(body).toEqual({ text: LINE, modelId: TTS_MODEL, outputFormat: "mp3_44100_64" })
     // A turn somebody is waiting through: bounded, cancellable, and not
     // retried until the audio is worth less than the wait.
     expect(options.maxRetries).toBe(1)
@@ -102,8 +122,9 @@ describe("refusing to be an open synthesiser", () => {
     const results = []
     for (let i = 0; i < 20; i++) results.push((await ask(spoken(), { "x-forwarded-for": "203.0.113.5" })).status)
     expect(results).toContain(429)
-    // Charged only for what it would actually have synthesised.
-    expect(upstream.convertWithTimestamps.mock.calls.length).toBe(results.filter((s) => s === 200).length)
+    // Asked twenty times and synthesised once: the bucket refuses the tail of
+    // it, and the cache answers everything in between without a provider call.
+    expect(upstream.convertWithTimestamps).toHaveBeenCalledTimes(1)
   })
 
   it("says how long to wait when it refuses", async () => {
@@ -156,5 +177,58 @@ describe("when the room is not configured to speak", () => {
     const response = await ask({ agent: "Nobody", text: LINE, grant: grantFor("Nobody", LINE) })
     expect(response.status).toBe(400)
     expect(upstream.convertWithTimestamps).not.toHaveBeenCalled()
+  })
+})
+
+describe("what a spoken line costs", () => {
+  it("says the same line twice and pays once", async () => {
+    expect((await ask(spoken())).status).toBe(200)
+    const again = await ask(spoken())
+    expect(again.status).toBe(200)
+    expect(await again.json()).toMatchObject({ audio: "AAAA" })
+    // The second one never reached ElevenLabs, which is the whole point: a
+    // transcript people scroll back through replays lines for free.
+    expect(upstream.convertWithTimestamps).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops speaking when the month is spent, and says so without spending more", async () => {
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {})
+    process.env[MONTHLY_CHARACTERS] = String(LINE.length)
+    expect((await ask(spoken())).status).toBe(200)
+    const other = "a second line entirely"
+    const response = await ask({ agent: "Anna", text: other, grant: grantFor("Anna", other) })
+    expect(response.status).toBe(503)
+    expect(upstream.convertWithTimestamps).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(log.mock.calls[0][0] as string)).toMatchObject({ event: "speech.budget_spent" })
+    // And the line it already knows is still free.
+    expect((await ask(spoken())).status).toBe(200)
+    expect(upstream.convertWithTimestamps).toHaveBeenCalledTimes(1)
+  })
+
+  it("goes off the air on a switch, with the key still in place", async () => {
+    process.env.SPEECH_ENABLED = "0"
+    expect((await ask(spoken())).status).toBe(503)
+    expect(upstream.convertWithTimestamps).not.toHaveBeenCalled()
+  })
+})
+
+describe("the line before this one", () => {
+  const before = "and how did the deploy go?"
+  it("is given to the voice as context when the room can prove it said that too", async () => {
+    await ask({ ...spoken(), previous: before, previousAgent: "Anna", previousGrant: grantFor("Anna", before) })
+    expect(upstream.convertWithTimestamps.mock.calls[0][1]).toMatchObject({ previousText: before })
+  })
+
+  it("is dropped, never refused, when it is not something this room said", async () => {
+    const response = await ask({ ...spoken(), previous: before, previousAgent: "Anna", previousGrant: "forged" })
+    // Context is an improvement. A bad one costs the prosody, not the sentence.
+    expect(response.status).toBe(200)
+    expect(upstream.convertWithTimestamps.mock.calls[0][1].previousText).toBeUndefined()
+  })
+
+  it("is left out when it is a paragraph rather than a breath", async () => {
+    const long = "x".repeat(400)
+    await ask({ ...spoken(), previous: long, previousAgent: "Anna", previousGrant: grantFor("Anna", long) })
+    expect(upstream.convertWithTimestamps.mock.calls[0][1].previousText).toBeUndefined()
   })
 })

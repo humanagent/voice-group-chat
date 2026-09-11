@@ -20,11 +20,11 @@ async function recording(page: Page, options: { finalize?: boolean; tokenFailure
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   await page.route("**/api/scribe", (route) => { tokens++; return route.fulfill({ status: options.tokenFailure ? 503 : 200, json: { token: "test-only-token" } }) })
   if (options.challenge) {
-    let run: null | { id: string; score: number; target: number; status: string; submitted: boolean } = null
+    let run: null | { id: string; score: number; status: string; submitted: boolean } = null
     await page.route("**/api/challenge", (route) => {
       if (route.request().method() === "GET") return route.fulfill({ json: { run } })
       sent.push(route.request().postDataJSON().message)
-      run = { id: "9c2e4b70-58d6-4a1c-9a7e-2f3b5d8c6014", score: 2, target: 20, status: "quiet", submitted: false }
+      run = { id: "9c2e4b70-58d6-4a1c-9a7e-2f3b5d8c6014", score: 2, status: "quiet", submitted: false }
       return route.fulfill({ contentType: "text/event-stream", body: [{ type: "challenge", run }, said("Anna", "First reply"), said("Pepe", "Second reply"), { type: "done" }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") })
     })
     // The round ends by publishing itself: the name was given before it started.
@@ -121,6 +121,29 @@ test("a long dictation is captured off screen, final words arrive before send, a
   expect(errors).toEqual([])
 })
 
+test("stopping a recording hands the words to the field instead of to the room", async ({ page }) => {
+  const session = await recording(page)
+  await session.begin()
+  session.event("partial_transcript", "Hola, estas son")
+  // The third control, and the reason it exists: the recording ends, the
+  // transcript arrives where it can be read, and nobody has spent a turn on a
+  // sentence they have not seen yet.
+  await page.getByRole("button", { name: "Stop and review" }).click()
+  const input = page.getByRole("textbox", { name: "Message the room" })
+  await expect(input).toHaveValue("Hola, estas son las últimas palabras.")
+  expect(session.sent).toEqual([])
+  expect(session.commits()).toBe(1)
+  await expect.poll(() => microphoneState(page)).toEqual({ streams: 1, tracks: ["ended"] })
+  await input.fill("Hola, estas son las últimas palabras, corregidas.")
+  await page.getByRole("button", { name: "Send message", exact: true }).click()
+  await expect.poll(() => session.sent).toEqual(["Hola, estas son las últimas palabras, corregidas."])
+  // And the recorder is not left in review mode: the next send is a send.
+  await session.begin()
+  await page.getByRole("button", { name: "Send recording", exact: true }).click()
+  await expect.poll(() => session.sent).toEqual(["Hola, estas son las últimas palabras, corregidas.", "Hola, estas son las últimas palabras."])
+  expect(session.commits()).toBe(2)
+})
+
 test("a missing final result recovers a draft instead of silently sending stale text", async ({ page }) => {
   const session = await recording(page, { finalize: false })
   await page.getByRole("textbox", { name: "Message the room" }).fill("Existing draft")
@@ -174,8 +197,8 @@ test("Challenge Play closes the intro and uses the existing microphone before th
   await page.getByRole("button", { name: "Send recording", exact: true }).click()
   await expect.poll(() => session.sent).toEqual(["Hola, estas son las últimas palabras."])
   expect(session.commits()).toBe(1)
-  await expect(page.getByRole("dialog", { name: "Round finished" })).toBeVisible()
-  await expect(page.getByLabel("2 of 20 replies")).toHaveText("2/20")
+  await expect(page.getByRole("dialog", { name: "The room went quiet." })).toBeVisible()
+  await expect(page.getByLabel("2 replies")).toContainText("2")
   // The room is named, so the result publishes itself and answers with a place.
   await expect(page.getByRole("dialog")).toContainText("#9 of 12 on the board")
   await expect(page.getByRole("button", { name: "Publish score" })).toHaveCount(0)

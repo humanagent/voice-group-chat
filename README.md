@@ -10,15 +10,22 @@ Three agents in a browser. They read the same transcript, each
 decides for itself whether a line was meant for it, and the one that answers
 answers out loud. Type into it, or tap the microphone to record, then tap Send.
 
+A recording ends three ways: **✕** throws it away, **■** stops it and drops the
+transcript into the field to read, edit or abandon, and **↑** sends it as it
+stands. Only the last one spends a turn.
+
 For the frontend code walkthrough, credential-free tests and observability
 workflow, see the [developer guide](web/docs/developer-guide.md).
 
 **Conversation challenge:** the room asks your name once, on arrival — it is what
 the agents call you, and what a score is published under. Tap the trophy for the
 rules, then Play: the microphone opens and the counter starts running beside the
-trophy. The room stays the same; each new agent reply adds a point. Reach 20 to
-win. When the round ends the score publishes itself under that name and the modal
-answers with the place it took — **#4 of 61** — with **Play again** under it. The
+trophy. The room stays the same; each new agent reply adds a point. There is no
+target and nothing to win: the round runs for as long as the agents keep
+answering each other, and the score is how far it got before the room went quiet,
+you stopped it, or the four-minute deadline arrived. When the round ends the score
+publishes itself under that name and the modal answers with the place it took —
+**#4 of 61** — with **Play again** under it. The
 leaderboard is optional: `/challenge` and the header button show the global
 ranking, which contains only names and scores; conversation content remains in
 the shared room. See the [rules, storage and security
@@ -77,8 +84,12 @@ nobody thought the last thing said was for them.
 | UI | ElevenLabs UI on shadcn, Next.js 16, React 19 |
 | Agents | [Hermes](https://github.com/NousResearch/hermes-agent), one process each |
 
-Model ids live in `src/defaults.py` and nowhere else. A test parses that file
-and fails if the TypeScript copy drifts.
+What the room sounds like — the TTS model, the ten voices, the language and how
+loud somebody has to be before it listens — is `speech.json` at the root, read by
+the Python and by the browser. It used to be a copy in each language with a test
+that parsed one of them from the other; agreement is not a thing to test for when
+both can read the same file. The chat model is `DEFAULT_MODEL` in
+`src/defaults.py`.
 
 ---
 
@@ -111,9 +122,9 @@ browser is sending anything — permission, the `AudioContext` and the worklet a
 resolve separately, and a session can be open while nothing is being captured.
 Telling somebody "listening" at that point is a promise the page cannot keep.
 
-`@elevenlabs/client@1.23.0` defines 23 realtime events. Every one is about the
-session, a transcript, or an error; none of them fires when audio starts
-flowing. So this room wraps the connection's own `send` to notice the first
+`@elevenlabs/client` defines 23 realtime events, in 1.23.0 and still in 1.25.0.
+Every one is about the session, a transcript, or an error; none of them fires
+when audio starts flowing. So this room wraps the connection's own `send` to notice the first
 chunk, and only then calls itself listening:
 
 ```ts
@@ -168,6 +179,15 @@ reply the full clip took 2.3s against 1.9s to first byte.
 Emoji come off on the way to the synthesiser only. A voice reads them as their
 names, "Hey Fabri waving hand", which is tone being pronounced instead of felt.
 
+Three smaller decisions in the same request. `mp3_44100_64` halves the default
+bitrate at the same sample rate, because this is base64 inside JSON on its way
+down a phone network. `previousText` carries the line being answered, so a reply
+lands on the intonation of an answer instead of starting the room again from
+silence — it travels with the grant the room issued for THAT line, because "only
+what this room said" does not get to lapse for the sentence beside the one being
+spoken. And the clip is kept, keyed by the hash of everything that decides it, so
+a transcript people scroll back through replays for free.
+
 **Voices** are picked on `high_quality_base_model_ids`, how many current model
 families actually render them. Most premade voices sit at 7 or 8. Adam, who led
 the account list for months, sits at **0**: a 2023 voice carried for
@@ -183,6 +203,15 @@ The key never reaches the browser:
 ```ts
 POST /v1/single-use-token/realtime_scribe   →  one session, nothing else
 ```
+
+**A gate before the socket.** The agents answer out loud, so on a phone the
+microphone hears them through the speaker, and a transcriber has no opinion about
+which voice in the room it was meant to write down. Under `gate` in `speech.json`
+the audio is measured for the meter and then dropped: a chunk that never leaves
+the browser cannot be transcribed, charged for, or mistaken for a word. It opens
+on the level and closes at half of it a moment later, and the chunks from just
+before it opened go with it, so a sentence keeps the start of its first word.
+`filterBackgroundAudio` asks ElevenLabs for the same idea at the other end.
 
 **Press to speak, not open mic.** An open microphone was built first and cut: in
 a room where three agents talk out loud, no VAD threshold separates a person
@@ -228,6 +257,7 @@ The table above records the original findings, not the current render path.
 | TTS `/stream` | Verified 200. Superseded by `with-timestamps`, same two seconds plus the timings. |
 | streaming the model | **469 turns ended in a suppress token.** Streaming means showing text from an agent that then says nothing. |
 | `elevenlabs/examples` | A pass over all of it, with what this room would have to become for each to fit. |
+| the Agents platform | The obvious question, and the answer is what this project is about. An agent there is one agent: one voice, one memory, one turn-taking policy, and a person talking to it. The subject here is what happens with THREE, each its own process with its own memory and persona, none of them told whose turn it is — the turn-taking is the experiment, not the plumbing under it. Voice, transcription and timings come from ElevenLabs; whose line it is does not. |
 
 ## The agents
 
@@ -258,6 +288,13 @@ docker run -p 3000:3000 \
   -v voice-group-chat:/data \
   voice-group-chat
 ```
+
+A key left running behind a public link is the one thing here that can lose real
+money, so the room counts what it spends: `SPEECH_MONTHLY_CHARACTERS` (200,000)
+and `SPEECH_MONTHLY_SESSIONS` (300) are a month's allowance, `0` removes the
+ceiling, and past it the room keeps working in text. `SPEECH_ENABLED=0` takes the
+voice off the air without touching the key, and `SPEECH_CACHE=0` stops it keeping
+clips. The rate limiter is the hard bound and these are the slow one.
 
 Then open `localhost:3000`. The volume is where the agents keep what they are —
 memory, drawn personas, session history — so it survives a rebuild; the code does

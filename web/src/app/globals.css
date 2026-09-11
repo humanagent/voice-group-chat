@@ -265,14 +265,16 @@ button:disabled { opacity: .35; }
 .icon-button { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; flex-shrink: 0; color: #aaa7b8; border-radius: 12px; }
 .icon-button:hover:not(:disabled) { background: #ffffff08; color: #f4eefc; }
 .room-actions .icon-button[aria-current="page"] { color: #e4d7fc; background: #d8cafa12; }
-/* Beside the cup, for as long as the attempt lasts. Tabular figures so 9 → 10
-   does not shift the column, and a track that is the same number for the eye:
-   a width, so its rounded caps stay rounded the whole way across. */
-.challenge-meter { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; align-self: center; padding: 0 6px 0 3px; line-height: 1; font-variant-numeric: tabular-nums; }
-.meter-count { color: #8d88a0; font-size: 11px; letter-spacing: -.2px; }
-.meter-count b { margin-right: 1px; color: #eeedf3; font-size: 15px; font-weight: 600; letter-spacing: -.4px; }
-.meter-track { display: block; width: 34px; height: 2px; border-radius: 1px; background: #ffffff14; }
-.meter-track i { display: block; height: 100%; border-radius: inherit; background: #d8cafa; transition: width 420ms cubic-bezier(.22, 1, .36, 1); }
+/* Beside the cup, for as long as the attempt lasts, with tabular figures so
+   9 → 10 does not shift the header.
+
+   A count with nothing to fill toward: the track under it was a fraction of
+   twenty, and twenty stopped existing. What is left is the number itself, with
+   the unit under it holding the space the track used to, so the header keeps
+   its height for the length of a round. */
+.challenge-meter { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; flex-shrink: 0; align-self: center; padding: 0 7px 0 4px; line-height: 1; font-variant-numeric: tabular-nums; }
+.challenge-meter b { color: #eeedf3; font-size: 17px; font-weight: 600; letter-spacing: -.5px; }
+.challenge-meter small { color: #8d88a0; font-size: 9px; }
 .stage-wrap { flex: 0 0 auto; padding: 14px 28px 20px; border-bottom: 1px solid #ffffff0a; background: radial-gradient(ellipse at 50% 44%, #9d89b10b, transparent 65%); }
 .agent-stage { display: flex; justify-content: center; gap: clamp(20px, 5vw, 66px); padding: 16px 0 15px; overflow-x: auto; scrollbar-width: thin; }
 .agent { flex-shrink: 0; width: 104px; text-align: center; }
@@ -346,7 +348,7 @@ button:disabled { opacity: .35; }
    voice that had already stopped. */
 .waveform { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; height: 26px; overflow: hidden; }
 .waveform i { flex: 0 0 2px; width: 2px; border-radius: 1px; background: #ceb4ec; }
-.recording-note { flex: 1; min-width: 0; font-size: 13px; color: #aaa7b6; }
+.recording-note { flex: 1; min-width: 0; font-size: 13px; color: #aaa7b6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .is-recording { border-color: #c3a8e568; }
 .room-notice { margin: 0 24px; padding: 11px 12px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: #bba0d810; border: 1px solid #bba0d820; border-radius: 10px; color: #d5c9e2; font-size: 11px; line-height: 1.6; }
 .room-notices { min-height: 0; max-height: 25%; flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
@@ -354,6 +356,7 @@ button:disabled { opacity: .35; }
 .room-notice + .room-notice { margin-top: 6px; }.room-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }.room-notice > svg { flex-shrink: 0; }.room-notice button { display: flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; min-height: 44px; min-width: 44px; }
 .confirm-button { background: #d8cafa; color: #2b2239; }
 .perf-panel { position: fixed; bottom: 18px; right: 18px; z-index: 50; width: min(310px, calc(100vw - 36px)); max-height: calc(100dvh - 36px); overflow-y: auto; padding: 20px; border: 1px solid #ad95cd55; border-radius: 18px; background: #191720f5; box-shadow: 0 12px 60px #0008; font-variant-numeric: tabular-nums; }.perf-panel button { padding: 4px; }.perf-toggle { position: fixed; bottom: 18px; right: 18px; z-index: 50; padding: 13px; border-radius: 50%; background: #3a2e49; }
+@keyframes count-step { from { color: #d8cafa; } to { color: #eeedf3; } }
 @keyframes orb-rotate { to { transform: rotate(360deg); } }
 @keyframes orb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 @keyframes status-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
@@ -367,6 +370,9 @@ button:disabled { opacity: .35; }
   .room-dialog[open] { animation: dialog-appear 180ms cubic-bezier(.16, 1, .3, 1); }
   .room-dialog[open]::backdrop { animation: surface-appear 180ms ease-out; }
   .challenge-lobby, .recording-content { animation: surface-appear 160ms ease-out; }
+  /* Each score is a new element, so this runs once per reply counted: the only
+     motion the counter has, and the only one it needs. */
+  .challenge-meter b { animation: count-step 380ms cubic-bezier(.22, 1, .36, 1); }
 }
 @media (hover: none) { .from-agent .message-foot button { opacity: 1; } .message-foot button { min-height: 44px; } }
 @media (max-height: 800px) and (min-width: 641px) { .room-page { padding-top: 14px; }.room-header { padding-top: 20px; }.stage-wrap { padding-top: 4px; padding-bottom: 12px; }.agent-orbit { width: 72px; height: 72px; margin-bottom: 12px; }.agent-stage { padding-top: 8px; padding-bottom: 10px; }.room-empty { padding-top: 8px; } }
@@ -384,8 +390,19 @@ button:disabled { opacity: .35; }
   .stage-wrap { padding: 4px 14px 8px; }.agent-stage { gap: 20px; padding: 4px 0; }.agent { width: 80px; }.agent-orbit { width: 56px; height: 56px; margin-bottom: 6px; }.agent-name { font-size: 12px; }.agent-caption { height: 16px; margin-top: 2px; font-size: 9px; }
   .transcript-content { padding: 18px 18px 14px; gap: 14px; }.message-bubble { font-size: 14px; padding: 11px 14px; }.message-body { max-width: 86%; }.message-meta { font-size: 11px; }.message-avatar { width: 24px; height: 24px; }
   .room-empty { padding: 12px 0; }
-  .composer-wrap { padding: 10px 12px max(8px, calc(var(--room-safe-bottom) - var(--room-keyboard-inset, 0px))); }.composer { padding-left: 14px; border-radius: 18px; }.composer textarea { font-size: 16px; }.composer-hint { font-size: 8px; margin-top: 8px; }.room-notice { margin-left: 14px; margin-right: 14px; padding: 6px 8px 6px 12px; }
+  .composer-wrap { padding: 10px 12px max(8px, calc(var(--room-safe-bottom) - var(--room-keyboard-inset, 0px))); }.composer { padding-left: 14px; border-radius: 18px; }
+  /* Never below 16px: a smaller field is one iOS zooms the whole page into on
+     focus, and this room does not zoom. */
+  .composer textarea { font-size: 16px; }.composer-hint { font-size: 8px; margin-top: 8px; }.room-notice { margin-left: 14px; margin-right: 14px; padding: 6px 8px 6px 12px; }
+  /* Discard, stop and send all sit here while recording. The bars give up their
+     spacing rather than their count, so the row stays whole. */
+  .waveform { gap: 3px; }
 }
+/* Narrower than that and the row would clip its right-hand end behind those
+   three controls — which is the live end, the part being spoken right now. The
+   oldest ten bars stand down instead, so what is left is a whole meter rather
+   than a sliced one. */
+@media (max-width: 359px) { .waveform i:nth-child(-n+10) { display: none; } }
 /* Short landscape windows keep a smaller stage too; input focus on portrait
    phones does not change either the header or stage geometry. */
 @media (max-height: 620px) and (min-width: 641px) {
@@ -422,8 +439,7 @@ html[data-room-standalone="true"] .composer-wrap { padding-bottom: max(8px, calc
 .result-trophy { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; color: #e5ce99; background: #e5ce9910; }
 .room-dialog h2 { font-size: 18px; font-weight: 500; letter-spacing: -.4px; }
 .room-dialog .result-score { margin: 8px 0 24px; color: #f3edff; font-size: clamp(64px, 16vw, 80px); line-height: 1; font-weight: 600; letter-spacing: -4px; font-variant-numeric: tabular-nums; }
-.result-score span { color: #aaa1bd; font-size: .5em; letter-spacing: -2px; font-weight: 400; }
-.challenge-won { border-color: #d8cafa55; background: linear-gradient(140deg, #31283e, #202129); }
+.result-score span { display: block; margin-top: 10px; color: #aaa1bd; font-size: 14px; font-weight: 400; letter-spacing: 0; }
 .room-dialog form { text-align: left; }
 .room-dialog label { display: block; margin-bottom: 8px; font-size: 13px; }
 .room-dialog input { display: block; width: 100%; min-height: 48px; border: 1px solid #ffffff35; border-radius: 12px; padding: 10px 12px; font-size: 16px; background: #17181f; color: #eeedf3; }

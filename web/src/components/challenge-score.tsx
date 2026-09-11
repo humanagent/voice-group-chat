@@ -2,11 +2,18 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ListOrderedIcon, PlayIcon, TrophyIcon, XIcon } from "lucide-react"
-import { CHALLENGE_TARGET, type ChallengeRun, type ScoreEntry, type Standing } from "@/lib/challenge"
+import { replies, replyWord, type ChallengeRun, type ScoreEntry, type Standing } from "@/lib/challenge"
 import { cycleDialogFocus } from "@/lib/dialog-focus"
 
+/**
+ * How the round ended, which is now the only thing that ends it.
+ *
+ * Nothing is won here any more. A round runs until the agents have nothing left
+ * to say to each other, or until the clock, the person or a failure takes it, and
+ * the number underneath is how far it got.
+ */
 const endings = {
-  won: "You won!", quiet: "Round finished", stopped: "Round stopped",
+  quiet: "The room went quiet.", stopped: "Round stopped",
   timeout: "Time’s up.", failed: "An agent couldn’t finish.", running: "Challenge in progress…",
 }
 
@@ -80,11 +87,11 @@ export function ChallengeResult({ run, standing, player, online, canPlay, publis
     return <p className="result-standing" role="status">{run.submitted ? "Published." : "Saving your place…"}</p>
   }
 
-  return <dialog ref={dialog} className={`room-dialog challenge-result ${run.status === "won" ? "challenge-won" : ""}`} aria-labelledby="challenge-result-title" aria-describedby="challenge-final-score" onCancel={(event) => { event.preventDefault(); dismiss() }} onKeyDown={cycleDialogFocus}>
+  return <dialog ref={dialog} className="room-dialog challenge-result" aria-labelledby="challenge-result-title" aria-describedby="challenge-final-score" onCancel={(event) => { event.preventDefault(); dismiss() }} onKeyDown={cycleDialogFocus}>
     <button className="icon-button result-close" aria-label="Back to the room" onClick={dismiss} autoFocus><XIcon size={18} /></button>
     <div className="result-trophy"><TrophyIcon size={32} strokeWidth={1.5} aria-hidden="true" /></div>
     <h2 id="challenge-result-title">{endings[run.status]}</h2>
-    <p id="challenge-final-score" className="result-score" aria-label={`${run.score} of ${CHALLENGE_TARGET} replies`}>{run.score}<span>/{CHALLENGE_TARGET}</span></p>
+    <p id="challenge-final-score" className="result-score" aria-label={replies(run.score)}>{run.score}<span>{replyWord(run.score)}</span></p>
     {place()}
     <button className="confirm-button" disabled={!canPlay} onClick={() => { dialog.current?.close(); playAgain() }}><PlayIcon size={18} aria-hidden="true" />Play again</button>
     <button className="result-again" onClick={() => { dialog.current?.close(); showBoard() }}><ListOrderedIcon size={15} aria-hidden="true" />See the board</button>
@@ -113,12 +120,12 @@ export function Scoreboard() {
     return () => controller.abort()
   }, [])
   return <section className="scoreboard" aria-labelledby="scoreboard-title">
-    <header><h2 id="scoreboard-title">Global scoreboard</h2><p>One prompt. Reach 20 replies to win.</p></header>
+    <header><h2 id="scoreboard-title">Global scoreboard</h2><p>One prompt, and every reply it sets off is a point. No ceiling.</p></header>
     <div className="scoreboard-tools"><span>Top 50 · ties go to the first published</span><button onClick={() => void load()} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button></div>
     {error && <p role="alert">The scoreboard couldn’t load. Try refreshing.</p>}
     {!error && entries?.length === 0 && <p className="scoreboard-empty">No scores yet. Be the first to play.</p>}
     {!!entries?.length && <ol className="scoreboard-list" aria-label="Global rankings">{entries.map((entry) => <li key={entry.id}>
-      <span className="score-rank">{entry.rank}</span><span className="score-name">{entry.name}{entry.won && <small>Winner</small>}</span><span className="score-value">{entry.score}<span> / 20</span></span>
+      <span className="score-rank">{entry.rank}</span><span className="score-name">{entry.name}</span><span className="score-value">{entry.score}<span> {replyWord(entry.score)}</span></span>
     </li>)}</ol>}
     <p className="scoreboard-footnote">Server-verified scores. Names are nicknames, not verified identities.</p>
   </section>

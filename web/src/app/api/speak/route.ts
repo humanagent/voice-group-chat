@@ -1,9 +1,11 @@
 import { agents } from "@/lib/agents"
 import { ElevenLabsError } from "@elevenlabs/elevenlabs-js"
 
-import { client, key, TTS_MODEL } from "@/lib/elevenlabs"
+import { spendCharacters } from "@/lib/budget"
+import { client, key, speechOff, TTS_LANGUAGE, TTS_MODEL } from "@/lib/elevenlabs"
 import { caller, limiter } from "@/lib/rate-limit"
 import { sameOrigin } from "@/lib/same-origin"
+import { clipKey, readClip, writeClip } from "@/lib/speech-cache"
 import { grantAllows } from "@/lib/speech-grant"
 import { sayable, voiceFor } from "@/lib/voices"
 
@@ -33,6 +35,27 @@ const MAX_SPEECH_CHARS = 1000
 const speechLimit = () => limiter("speech", { perMinute: 20, burst: 12 }, { perMinute: 120, burst: 60 })
 
 /**
+ * What comes back from the synthesiser.
+ *
+ * Halved from the default `mp3_44100_128` at the same sample rate. The clip is
+ * base64 inside JSON, which is another third on top, and it is pulled down a
+ * phone network by somebody waiting to hear a sentence. At conversational
+ * length nobody can hear the difference through a phone speaker, and everybody
+ * can feel the wait.
+ */
+const OUTPUT_FORMAT = "mp3_44100_64" as const
+
+/**
+ * How much of the line before this one the voice is told about.
+ *
+ * `previousText` is not spoken. It is context: a voice that knows the sentence
+ * it is answering lands on the intonation of an answer instead of starting the
+ * room again from silence. Capped because prosody needs the last breath, not
+ * the last paragraph, and because this travels in a URL.
+ */
+const CONTEXT_CHARS = 300
+
+/**
  * A reply, out loud.
  *
  * The runtime used to synthesise inside the turn and hand back a file, which
@@ -57,7 +80,7 @@ const speechLimit = () => limiter("speech", { perMinute: 20, burst: 12 }, { perM
  */
 export async function GET(request: Request) {
   const apiKey = key()
-  if (!apiKey) return Response.json({ error: "no ELEVENLABS_API_KEY" }, { status: 503 })
+  if (!apiKey || speechOff()) return Response.json({ error: "no ELEVENLABS_API_KEY" }, { status: 503 })
   if (!sameOrigin(request)) return Response.json({ error: "not this room" }, { status: 403 })
 
   const params = new URL(request.url).searchParams
@@ -81,9 +104,15 @@ export async function GET(request: Request) {
   const spoken = sayable(text)
   if (!spoken) return Response.json({ error: "nothing to say" }, { status: 400 })
 
+  const voice = voiceFor(agent, group)
+  const key_ = clipKey({ voice, model: TTS_MODEL, language: TTS_LANGUAGE, format: OUTPUT_FORMAT, text: spoken })
+
   // Charged here and not earlier: the budget this protects is spent by the
   // call below, so everything a request can be rejected for should already
-  // have rejected it.
+  // have rejected it. Ahead of the cache, though — a clip that already exists
+  // costs the account nothing to make and is still bytes off a disk and down a
+  // wire, and this bucket is the only thing between the route and somebody who
+  // liked one of its answers a great deal.
   const allowed = speechLimit().take(caller(request))
   if (!allowed.ok) {
     return Response.json(
@@ -92,7 +121,32 @@ export async function GET(request: Request) {
     )
   }
 
-  const voice = voiceFor(agent, group)
+  // Before the month's allowance, because the account was charged for this
+  // line the first time somebody heard it and is not being charged again.
+  const cached = readClip(key_)
+  if (cached) return answer(cached)
+
+  // The month's allowance, taken before the call rather than counted after it,
+  // so two requests arriving together cannot both spend the last of it.
+  const month = spendCharacters(spoken.length)
+  if (!month.ok) {
+    console.warn(JSON.stringify({ event: "speech.budget_spent", version: 1, used: month.used, limit: month.limit }))
+    return Response.json({ error: "this room has spoken its fill for the month" }, { status: 503 })
+  }
+
+  /**
+   * The line before this one, when the room can prove it said that too.
+   *
+   * It travels with its own grant because it is text on its way to the
+   * provider, and "only what this room said" is not a rule that holds for the
+   * line being spoken and lapses for the line beside it. Unsigned or missing,
+   * it is simply dropped: context is an improvement, never a requirement.
+   */
+  const previous = params.get("previous") ?? ""
+  const previousAgent = params.get("previousAgent") ?? ""
+  const context = previous && previous.length <= CONTEXT_CHARS && grantAllows(previousAgent, previous, params.get("previousGrant"))
+    ? sayable(previous)
+    : ""
 
   // Held whole, which this endpoint does anyway — there is no streaming
   // variant of the timings, and there was nothing to stream. Measured on a
@@ -106,7 +160,15 @@ export async function GET(request: Request) {
   try {
     clip = await client(apiKey).textToSpeech.convertWithTimestamps(
       voice,
-      { text: spoken, modelId: TTS_MODEL },
+      {
+        text: spoken,
+        modelId: TTS_MODEL,
+        outputFormat: OUTPUT_FORMAT,
+        // Null means detect it, which is this room's decision and not a
+        // default it fell into. See `speech.json`.
+        ...(TTS_LANGUAGE ? { languageCode: TTS_LANGUAGE } : {}),
+        ...(context ? { previousText: context } : {}),
+      },
       // One retry, not the SDK's default of two. This sits inside a turn
       // somebody is waiting through, and a third attempt costs more time than
       // the audio is worth by the time it would arrive.
@@ -136,15 +198,22 @@ export async function GET(request: Request) {
     return Response.json({ error: "no audio in response" }, { status: 502 })
   }
 
-  return Response.json(
-    {
-      audio: clip.audioBase64,
-      // The characters as ElevenLabs read them, and when each one begins.
-      // Sent rather than inferred from the text: what it was given and what it
-      // ended up saying are not always the same string.
-      chars: clip.alignment?.characters ?? [],
-      starts: clip.alignment?.characterStartTimesSeconds ?? [],
-    },
-    { headers: { "Cache-Control": "no-store" } },
-  )
+  const made = {
+    audio: clip.audioBase64,
+    // The characters as ElevenLabs read them, and when each one begins. Sent
+    // rather than inferred from the text: what it was given and what it ended
+    // up saying are not always the same string.
+    chars: clip.alignment?.characters ?? [],
+    starts: clip.alignment?.characterStartTimesSeconds ?? [],
+  }
+  // Kept for the next time this line is heard, which for a transcript anybody
+  // scrolls back through is more often than it is said.
+  writeClip(key_, made)
+  return answer(made)
+}
+
+/** No-store to the browser either way: a cached clip is the server's business,
+ *  and the page holds these in memory for as long as the room is open. */
+function answer(clip: { audio: string; chars: string[]; starts: number[] }) {
+  return Response.json(clip, { headers: { "Cache-Control": "no-store" } })
 }
