@@ -30,7 +30,7 @@ export default defineConfig({
       NEXT_PUBLIC_SENTRY_DSN: "https://public@sentry.invalid/1",
       // Enables voice controls; every provider request is intercepted by the tests.
       ELEVENLABS_API_KEY: "browser-test-only",
-      GROUP_AGENTS: JSON.stringify(["Anna", "Jordan", "Pepe"].map((name) => ({ name, url: "http://127.0.0.1:9", key: "browser-test-only" }))),
+      GROUP_AGENTS: JSON.stringify(["Steve", "Jordan", "Pepe"].map((name) => ({ name, url: "http://127.0.0.1:9", key: "browser-test-only" }))),
     },
   },
 })

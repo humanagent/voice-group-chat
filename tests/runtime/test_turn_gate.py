@@ -46,16 +46,16 @@ def test_a_silent_turn_still_ships_what_it_made() -> None:
 def test_mentions_only_withholds_the_reply_and_the_attachments() -> None:
     """Staying quiet while still posting things is not staying quiet."""
     participation.set_mode("r", participation.MENTION)
-    v = call(inbound="Anna: hey jordan did you see the time")
+    v = call(inbound="Steve: hey jordan did you see the time")
     assert not v.speak and not v.keep_effects
     assert call(inbound="Fabri: agent, what time is it").speak
 
 
 def test_a_question_aimed_at_another_member_is_left_alone() -> None:
     """In `speak` the model would otherwise get to judge this one, and it judged
-    it wrong: it answered over Anna's shoulder."""
+    it wrong: it answered over Steve's shoulder."""
     participation.set_mode("r", participation.SPEAK)
-    v = call(inbound="Fabri: Anna, do you know what time it opens?")
+    v = call(inbound="Fabri: Steve, do you know what time it opens?")
     assert not v.speak and v.reason == "addressed to someone else"
 
 

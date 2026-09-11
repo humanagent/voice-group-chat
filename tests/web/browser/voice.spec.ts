@@ -30,7 +30,7 @@ async function room(page: Page, { wake }: { wake: boolean }) {
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   await page.route("**/api/telemetry", (route) => route.fulfill({ status: 204 }))
   await page.route("**/api/say", (route) => route.fulfill({ contentType: "text/event-stream", body: [
-    said("Anna", reply), { type: "done" },
+    said("Steve", reply), { type: "done" },
   ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") }))
   await page.route("**/api/speak?*", (route) => route.fulfill({ json: {
     audio: "AA==", chars: Array.from(reply), starts: Array.from(reply, (_, index) => index / 20),
@@ -109,9 +109,9 @@ test("a tap is what makes the room audible, and it takes only the first one", as
   expect(primed.plays).toEqual(["silence"])
   expect(primed.session).toEqual([])
 
-  await input.fill("Anna, say something.")
+  await input.fill("Steve, say something.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
-  await expect(page.getByRole("article", { name: "Anna said" })).toBeVisible()
+  await expect(page.getByRole("article", { name: "Steve said" })).toBeVisible()
   await expect.poll(async () => (await probe(page)).starts).toEqual(["silence", "clip"])
   const spoken = await probe(page)
   // Claimed here instead, one moment before the sound: this is what a ring
@@ -127,10 +127,10 @@ test("a tap is what makes the room audible, and it takes only the first one", as
 test("a context that will not wake still speaks, and never wedges the queue", async ({ page }) => {
   await room(page, { wake: false })
   const input = page.getByRole("textbox", { name: "Message the room" })
-  for (const line of ["Anna, say something.", "Anna, say it again."]) {
+  for (const line of ["Steve, say something.", "Steve, say it again."]) {
     await input.fill(line)
     await page.getByRole("button", { name: "Send message", exact: true }).click()
-    await expect(page.getByRole("article", { name: "Anna said" }).last()).toBeVisible()
+    await expect(page.getByRole("article", { name: "Steve said" }).last()).toBeVisible()
   }
   // Both replies were heard as files. The second is the one that matters: a
   // clip scheduled on a sleeping context never ends, and the reply behind it

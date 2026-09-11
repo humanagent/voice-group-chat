@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { isMine, playerName, readPlayer, refusal, speakerFor, UNNAMED, writePlayer } from "@/lib/player"
 
-const agents = ["Anna", "Jordan", "Pepe"]
+const agents = ["Steve", "Jordan", "Pepe"]
 
 function storage(): Storage {
   const held = new Map<string, string>()
@@ -25,11 +25,11 @@ describe("the name a person claims", () => {
 
   it("refuses an agent's name, whatever the casing", () => {
     // Not etiquette. Every line goes to `audienceFor(group, speaker)`, which is
-    // everyone EXCEPT the speaker — so a person called Anna would be the one
-    // member of the room Anna never hears.
-    expect(playerName("Anna", agents)).toBeNull()
-    expect(playerName("anna", agents)).toBeNull()
-    expect(refusal("anna", agents)).toBe("Anna is already in the room.")
+    // everyone EXCEPT the speaker — so a person called Steve would be the one
+    // member of the room Steve never hears.
+    expect(playerName("Steve", agents)).toBeNull()
+    expect(playerName("steve", agents)).toBeNull()
+    expect(refusal("steve", agents)).toBe("Steve is already in the room.")
   })
 
   it("refuses the room's own machinery and the unnamed placeholder", () => {
@@ -40,8 +40,8 @@ describe("the name a person claims", () => {
   it("refuses anything that would break the speaker prefix", () => {
     // The transcript recovers who spoke from `Name: text`. A colon or a newline
     // in the name lets one line claim to be two, or to be somebody else's.
-    expect(playerName("Anna: hello", agents)).toBeNull()
-    expect(playerName("Fabri\nAnna", agents)).toBeNull()
+    expect(playerName("Steve: hello", agents)).toBeNull()
+    expect(playerName("Fabri\nSteve", agents)).toBeNull()
     expect(playerName("x".repeat(25), agents)).toBeNull()
     expect(playerName("   ", agents)).toBeNull()
   })
@@ -63,7 +63,7 @@ describe("whose line is this", () => {
   it("does not hand one player another player's messages", () => {
     // Two people share a room across sittings: Alf played, Fabri came back.
     expect(isMine("Alf", "Fabri")).toBe(false)
-    expect(isMine("Anna", "Fabri")).toBe(false)
+    expect(isMine("Steve", "Fabri")).toBe(false)
     expect(isMine("Alf", "")).toBe(false)
   })
 })
@@ -95,7 +95,7 @@ describe("remembering the player", () => {
 
   it("ignores a stored value that is no longer a usable name", () => {
     vi.stubGlobal("localStorage", storage())
-    localStorage.setItem("room.player", "Anna: hi")
+    localStorage.setItem("room.player", "Steve: hi")
     expect(readPlayer()).toBe("")
   })
 })

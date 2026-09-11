@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { deliver } from "@/lib/group"
 
-const agent = { name: "Anna", url: "http://anna.test", key: "test" }
+const agent = { name: "Steve", url: "http://steve.test", key: "test" }
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe("deliver", () => {

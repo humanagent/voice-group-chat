@@ -18,7 +18,7 @@ function stream(run: ChallengeRun) {
   return [
     { type: "challenge", run: { ...run, score: 0, status: "running" } },
     ...Array.from({ length: run.score }, (_, index) => [
-      said(["Anna", "Jordan", "Pepe"][index % 3], `Reply ${index + 1}`),
+      said(["Steve", "Jordan", "Pepe"][index % 3], `Reply ${index + 1}`),
       { type: "challenge", run: { ...run, score: index + 1, status: index + 1 === run.score ? run.status : "running" } },
     ]).flat(),
     { type: "challenge", run }, { type: "done" },
@@ -38,7 +38,7 @@ async function mocks(page: Page, score = 24, restored: ChallengeRun | null = nul
   let posts = 0
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room" } }))
-  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [{ speaker: "Anna", text: "Our existing conversation", spoken: false }] } }))
+  await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [{ speaker: "Steve", text: "Our existing conversation", spoken: false }] } }))
   await page.route("**/api/speak?*", (route) => route.fulfill({ status: 503, json: { error: "Speech mocked for browser tests" } }))
   await page.route("**/api/challenge", async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { run, standing } })
@@ -82,7 +82,7 @@ test("a round counts as far as it gets, publishes under the room's name and answ
   const round = await setup(page)
   // The counter runs from Play, beside the cup, and not only inside a modal.
   await expect(page.getByLabel("Challenge: 0 replies")).toBeVisible()
-  await page.getByRole("textbox", { name: "Message the room" }).fill("Anna, ask everyone a question.")
+  await page.getByRole("textbox", { name: "Message the room" }).fill("Steve, ask everyone a question.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
   await expect(page.getByRole("heading", { name: "The room went quiet." })).toBeVisible()
   // Past the number this game used to stop at, with nothing capping it.
@@ -234,14 +234,14 @@ test("the first visit asks who is playing, and a saved result waits for the answ
   const gate = page.getByRole("dialog", { name: "Who’s playing?" })
   await expect(gate).toBeVisible()
   // The agents in this room, by name: the reason the question is being asked.
-  await expect(gate).toContainText("Anna, Jordan and Pepe")
+  await expect(gate).toContainText("Steve, Jordan and Pepe")
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   // Play is live without a name, because the dialog in front of it is the ask.
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled()
   // An agent's name would take that agent out of its own audience.
-  await gate.getByLabel("Your name").fill("Anna")
+  await gate.getByLabel("Your name").fill("Steve")
   await gate.getByRole("button", { name: "Enter the room" }).click()
-  await expect(gate.getByRole("alert")).toHaveText("Anna is already in the room.")
+  await expect(gate.getByRole("alert")).toHaveText("Steve is already in the room.")
   await gate.getByLabel("Your name").fill("Tester")
   await gate.getByRole("button", { name: "Enter the room" }).click()
   await expect(gate).toHaveCount(0)
@@ -356,7 +356,7 @@ test("a second prompt cannot be sent while an attempt is running", async ({ page
 test("result traps focus, Escape continues the same room, and only Play starts counting", async ({ page }) => {
   const round = await setup(page, 2)
   const input = page.getByRole("textbox", { name: "Message the room" })
-  await input.fill("Anna, count to three, then ask Pepe to count to ten.")
+  await input.fill("Steve, count to three, then ask Pepe to count to ten.")
   await input.press("Enter")
   const modal = page.getByRole("dialog")
   await expect(modal).toBeVisible()

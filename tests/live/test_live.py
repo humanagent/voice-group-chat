@@ -137,9 +137,9 @@ def test_a_room_starts_quiet_until_called(chat) -> None:
 
 def test_it_does_not_answer_over_somebody_else(chat, mode) -> None:
     """The observed false positive, and the reason addressing stopped being the
-    model's judgement call: a question aimed at Anna, answered by the agent."""
+    model's judgement call: a question aimed at Steve, answered by the agent."""
     mode(chat, "speak")
-    assert quiet(say(chat, "Fabri: Anna, do you know when the post office opens?"))
+    assert quiet(say(chat, "Fabri: Steve, do you know when the post office opens?"))
 
 
 def test_a_greeting_without_a_comma_still_names_somebody(chat, mode) -> None:

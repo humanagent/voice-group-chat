@@ -5,7 +5,7 @@ import { publicName } from "./challenge"
  *
  * The room had exactly one human in it and called them `you` — in the title, in
  * the transcript, and in the `you:` prefix every agent read. That is a label,
- * not a name, and it is the reason an agent answering a question could name Anna
+ * not a name, and it is the reason an agent answering a question could name Steve
  * and Pepe but never the person it was actually talking to.
  *
  * So the person names themselves once, by typing it into the title, and that one
@@ -38,7 +38,7 @@ const MACHINERY = "System"
  * a transcript have the same hostile inputs. The reservation on top of it is not
  * etiquette: every line is delivered to `audienceFor(group, speaker)`, which
  * hands the line to everyone *except* the speaker, so a person calling
- * themselves Anna would be the one member of the room Anna never hears.
+ * themselves Steve would be the one member of the room Steve never hears.
  */
 export function playerName(value: unknown, agents: readonly string[] = []): string | null {
   const name = publicName(value)
@@ -51,8 +51,8 @@ export function playerName(value: unknown, agents: readonly string[] = []): stri
 export function refusal(value: string, agents: readonly string[] = []): string | null {
   const trimmed = value.trim()
   if (!trimmed) return null
-  // Named back the way the room spells it, not the way it was typed: "anna is
-  // already in the room" reads like a different Anna.
+  // Named back the way the room spells it, not the way it was typed: "steve is
+  // already in the room" reads like a different Steve.
   const taken = agents.find((agent) => agent.toLowerCase() === trimmed.toLowerCase())
   if (taken) return `${taken} is already in the room.`
   return playerName(trimmed, agents) ? null : "Letters, numbers and spaces."

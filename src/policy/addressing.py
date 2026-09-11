@@ -2,8 +2,8 @@
 
 The prompt asks the model this every turn and the model gets it wrong in a way
 worth naming: a message that names somebody *else* still reads to it as an
-opening. Observed, before this existed — "Anna, do you know when the post office
-opens?" and the agent answered, over Anna's shoulder.
+opening. Observed, before this existed — "Steve, do you know when the post office
+opens?" and the agent answered, over Steve's shoulder.
 
 That is not a judgement call. The message either carries the agent's name or it
 does not, and a function can say so where a prompt can only hope. So this runs
@@ -29,7 +29,7 @@ GENERIC_TOKEN = "agent"
 _GENERIC_MENTION = re.compile(r"(?<!\w)@agent(?!\w)", re.IGNORECASE)
 _WORDS = re.compile(r"[^\W_]+")
 # The openers that make the next word a name. Used by both vocative shapes, so
-# "hey ana" and "Anna," cannot drift into disagreeing about what counts as a
+# "hey steeve" and "Steve," cannot drift into disagreeing about what counts as a
 # greeting.
 _GREETINGS = (
     r"hey|heyy+|hi|hii+|hiya|hello|yo|howdy|morning|"
@@ -54,13 +54,12 @@ def _max_edits(token_len: int) -> int:
 
 
 def _squeeze(word: str) -> str:
-    """A word with its runs of one letter collapsed: "annaa" -> "ana".
+    """A word with its runs of one letter collapsed: "steevee" -> "steve".
 
-    A doubled letter is not really a typo, it is how a name arrives. A
-    transcriber writes down the spelling its own language prefers — "Ana" and
-    "Anna" are the same sound in two languages and it has to pick one — and
-    somebody typing writes "anaa" or "annaa". Collapsing every run to a single
-    letter makes all of those one word.
+    A doubled letter is not really a typo, it is how a name arrives. A held
+    vowel comes back doubled: somebody calling across a room is transcribed
+    "Steeve", and somebody typing a name they are unsure of writes "stevee".
+    Collapsing every run to a single letter makes all of those one word.
 
     Short names need this most and are the ones the edit budget cannot help: a
     three-letter token gets no tolerance at all outside the vocative, on
@@ -100,10 +99,10 @@ def is_addressed(text: str, name: str, *, is_reply_to_agent: bool = False) -> bo
 
     With one thing that outranks all of them except the sigil: a message that
     OPENS by calling somebody else is a message to them, and the agent's name
-    further in is being talked about rather than talked to. "Anna, preguntale a
-    Pepe la hora" is a request to Anna. Pepe answering it is the same
+    further in is being talked about rather than talked to. "Steve, ask Pepe what
+    time it is" is a request to Steve. Pepe answering it is the same
     over-the-shoulder mistake this module exists to stop, one step removed —
-    and worse, because Anna then relays the question and gets the same answer a
+    and worse, because Steve then relays the question and gets the same answer a
     second time.
     """
     if is_reply_to_agent:
@@ -114,7 +113,7 @@ def is_addressed(text: str, name: str, *, is_reply_to_agent: bool = False) -> bo
     if not text:
         return False
 
-    # The sigil still wins. "@agent" inside a message to Anna is somebody
+    # The sigil still wins. "@agent" inside a message to Steve is somebody
     # deliberately pulling the agent in, and a deliberate address is the one
     # thing never worth second-guessing.
     if _GENERIC_MENTION.search(text):
@@ -127,7 +126,7 @@ def is_addressed(text: str, name: str, *, is_reply_to_agent: bool = False) -> bo
     if called:
         # The vocative slot is the one place a short name can forgive a typo.
         # Everywhere else a three-letter name has to be exact, or "various
-        # people came" calls Aria — but in "hey anaa" nothing is being said except
+        # people came" calls Aria — but in "hey steevee" nothing is being said except
         # somebody's name, so a letter out of place is a typo and not a
         # coincidence. Short names were staying silent at a plain greeting.
         return any(_matches_name(one, own, tokens, tolerant=True) for one in called)
@@ -202,7 +201,7 @@ def _matches_name(
     )
 
 
-# A name at the head of the message, followed by a comma: "Anna, what time does
+# A name at the head of the message, followed by a comma: "Steve, what time does
 # it open?" That shape is a vocative, and it is the exact case the model kept
 # answering over somebody's shoulder. Kept narrow on purpose — head position and
 # a comma — so an ordinary sentence that happens to contain a name does not trip
@@ -228,22 +227,22 @@ _NOT_A_NAME = {
 }
 
 
-# Whoever the message opens by calling: "Anna," / "hey ana" / "Anna and Pepe,".
+# Whoever the message opens by calling: "Steve," / "hey steeve" / "Steve and Pepe,".
 # Several names because a message can open on more than one person, and reading
 # only the first would silence everybody after the "y".
 _SPEAKER_PREFIX = re.compile(r"^\s*[\w.\-\s]{1,24}:\s*")
 _NAME = r"[A-Za-z]{2,20}"
-# A greeting needs no comma: "hey ana ask…" calls Anna as plainly as "Anna,
+# A greeting needs no comma: "hey steeve ask…" calls Steve as plainly as "Steve,
 # ask…" does. Joined only by conjunctions, never by a comma — a comma after a
 # greeting ends the address rather than continuing it, and allowing one made
-# "hey everyone, I need ana" read "I" as somebody's name.
+# "hey everyone, I need steve" read "I" as somebody's name.
 _CALLED_AFTER_GREETING = re.compile(
     rf"^\s*(?:{_GREETINGS})\s+({_NAME}(?:\s*(?:y|e|and|&)\s*{_NAME})*)\b",
     re.IGNORECASE,
 )
 # Without a greeting the comma is what makes it a vocative rather than a
 # sentence that happens to start with a name. Here a comma CAN join the list,
-# because the closing comma is what ends it: "Anna, Pepe, vengan".
+# because the closing comma is what ends it: "Steve, Pepe, vengan".
 _CALLED_BEFORE_COMMA = re.compile(
     rf"^\s*({_NAME}(?:\s*(?:,|y|e|and|&)\s*{_NAME})*)\s*[,:]"
 )

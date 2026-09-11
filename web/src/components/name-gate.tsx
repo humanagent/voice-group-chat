@@ -48,8 +48,8 @@ export function NameGate({ agents, claim, dismiss }: {
     event.preventDefault()
     const typed = draft.trim()
     const claimed = playerName(typed, agents)
-    // A refused name stays in the field with the reason under it — taking Anna
-    // is the common one, and "Anna is already in the room" is the only answer
+    // A refused name stays in the field with the reason under it — taking Steve
+    // is the common one, and "Steve is already in the room" is the only answer
     // that tells the person what to type instead.
     if (!claimed) { setProblem(refusal(typed, agents) ?? "Letters, numbers and spaces."); return }
     dialog.current?.close()

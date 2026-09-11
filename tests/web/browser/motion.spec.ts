@@ -3,11 +3,11 @@ import { expect, said, test, type Page } from "../../../web/test-support/browser
 const reply = "A friendly conversation continues."
 
 async function mockRoom(page: Page) {
-  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room", agents: ["Anna", "Jordan", "Pepe"], complete: true } }))
+  await page.route("**/api/room", (route) => route.fulfill({ json: { chat: "room", agents: ["Steve", "Jordan", "Pepe"], complete: true } }))
   await page.route("**/api/history?*", (route) => route.fulfill({ json: { lines: [] } }))
   await page.route("**/api/telemetry", (route) => route.fulfill({ status: 204 }))
   await page.route("**/api/say", (route) => route.fulfill({ contentType: "text/event-stream", body: [
-    said("Anna", reply), { type: "done" },
+    said("Steve", reply), { type: "done" },
   ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") }))
   await page.route("**/api/speak?*", (route) => route.fulfill({ json: {
     audio: "AA==", chars: Array.from(reply), starts: Array.from(reply, (_, i) => i < 2 ? 0 : 60),
@@ -82,10 +82,10 @@ test("changing motion or visibility during speech rests only the visuals", async
   // An enabled SSR textarea does not prove hydration has attached its events.
   await expect(page.getByRole("region", { name: "The room", exact: true })).toHaveAttribute("aria-busy", "false")
   const input = page.getByRole("textbox", { name: "Message the room" })
-  await input.fill("Anna, say hello.")
-  await expect(input).toHaveValue("Anna, say hello.")
+  await input.fill("Steve, say hello.")
+  await expect(input).toHaveValue("Steve, say hello.")
   await page.getByRole("button", { name: "Send message", exact: true }).click()
-  const message = page.getByRole("article", { name: "Anna said" })
+  const message = page.getByRole("article", { name: "Steve said" })
   const ahead = message.locator(".reading-ahead")
   const orb = page.locator('.agent[data-phase="speaking"] .agent-sphere > div')
   const inlineTransform = () => orb.evaluate((node) => (node as HTMLElement).style.transform)

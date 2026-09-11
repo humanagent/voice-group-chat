@@ -6,10 +6,10 @@ a question left hanging in the air: three agents and a person all hear it, none
 of them knows whether it was theirs, and what follows is either silence or all
 of them answering at once. Observed, exactly as written:
 
-    Anna:  I'm good! Pepe, are you up for doing something tomorrow?
+    Steve:  I'm good! Pepe, are you up for doing something tomorrow?
     Pepe:  Sure — what did you have in mind?
 
-Anna asked Pepe by name. Pepe asked back into the void.
+Steve asked Pepe by name. Pepe asked back into the void.
 
 `group_context.md` asks the model to put the name on it. This is the
 deterministic backstop underneath that, the same arrangement `outbound_length`
@@ -17,7 +17,7 @@ has with BREVITY: guidance biases the reply, and a function guarantees it. A
 reply that carries a question mark and names nobody gets the name of whoever it
 is answering, placed at the question itself:
 
-    Sure — what did you have in mind, Anna?
+    Sure — what did you have in mind, Steve?
 
 Nothing is invented here. The name comes from the ``Speaker:`` prefix on the
 message that opened the turn, which is the only thing in this process that
@@ -107,9 +107,9 @@ def _addresses_somebody(text: str, asker: str) -> bool:
     asker to it would address two people at once), or it calls on the room.
 
     Anywhere in the line, not just in the question, and that is deliberately
-    loose: "I'll ask Anna — what time works?" mentions her rather than asking
+    loose: "I'll ask Steve — what time works?" mentions her rather than asking
     her, and is left alone anyway. A guard that fired there would produce "I'll
-    ask Anna — what time works, Anna?", which is worse than the miss. This only
+    ask Steve — what time works, Steve?", which is worse than the miss. This only
     ever adds a name to a line that has none.
     """
     return bool(
@@ -118,11 +118,11 @@ def _addresses_somebody(text: str, asker: str) -> bool:
 
 
 def _name_the_question(text: str, asker: str) -> str:
-    """``…have in mind?`` -> ``…have in mind, Anna?``
+    """``…have in mind?`` -> ``…have in mind, Steve?``
 
     The name goes where a person would say it: at the end of the question, not
     bolted onto the front of the message. Stepping back over the punctuation
-    first is what keeps "really!?" from becoming "really!, Anna?".
+    first is what keeps "really!?" from becoming "really!, Steve?".
     """
     mark = text.index("?")
     head = text[:mark].rstrip(_BEFORE_THE_MARK)

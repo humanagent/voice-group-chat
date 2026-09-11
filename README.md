@@ -1,7 +1,7 @@
 # Teaching agents to shut up
 
 <p align="center">
-  <img src="docs/the-room.png" alt="The room: Anna, Jordan and Pepe, all listening, and one spoken reply from Anna" width="620">
+  <img src="docs/the-room.png" alt="The room: Steve, Jordan and Pepe, all listening, and one spoken reply from Steve" width="620">
 </p>
 
 **The room**, live: [voice-group-chat.up.railway.app](https://voice-group-chat.up.railway.app).
@@ -41,12 +41,12 @@ free-plan key.
 
 ```
 > hey everyone, how's it going?
-  Anna stayed quiet
+  Steve stayed quiet
   Jordan stayed quiet
   Pepe stayed quiet
 
-> hey ana ask pepe what time it is
-  Anna: Pepe, what time is it?
+> hey steeve ask pepe what time it is
+  Steve: Pepe, what time is it?
   Jordan stayed quiet
   Pepe stayed quiet
   Pepe: It's 3:47pm.
@@ -59,11 +59,11 @@ flowchart LR
   mic["🎙 tap to record, then send"] -->|scribe_v2_realtime| say
   type["⌨ type"] --> say["POST /api/say"]
 
-  say --> anna["Anna"]
+  say --> steve["Steve"]
   say --> jordan["Jordan"]
   say --> pepe["Pepe"]
 
-  anna --> gate{"was this<br/>for me?"}
+  steve --> gate{"was this<br/>for me?"}
   jordan --> gate
   pepe --> gate
 
@@ -225,11 +225,12 @@ What survived is one testable function, `lib/listening.ts`, deciding whether
 anything was said between the two presses. Fillers and `[BLANK_AUDIO]` come off;
 one real word still counts, because "sí" and "stop" are whole turns.
 
-**The transcriber renamed an agent.** She was Ana. "Ana" and "Anna" are one
-sound in two languages and a transcriber listening in English writes the English
-one, so she sat silent while being called by name, out loud, twice. Fixed both
-ways: the addressing check collapses held letters, and she is spelled Anna now.
-Invisible in any text-only test.
+**The transcriber renamed an agent.** A short name whose sound has two
+spellings comes back in whichever one the transcriber was listening for, so the
+agent sat silent while being called by name, out loud, twice. Fixed both ways:
+the addressing check collapses held letters, so a name that arrives doubled or
+dropped still lands, and the room's names were rechosen so none of them is a coin
+flip. Invisible in any text-only test.
 
 Measured 2026-08-29: first partial in 3-4s, full sentence recovered, on
 Rioplatense Spanish. These are historical live measurements, not a promise for
@@ -353,7 +354,7 @@ Rule for this game: whenever someone names two of you, both of you answer, one
 short line each, and each of you then names the two who did not just speak, so
 the room doubles every turn until somebody names only one person and it drops
 back to one. Every line has to carry something of its own, in your own voice,
-never agreement with the line beside it. Start now: Anna, name Jordan and Pepe,
+never agreement with the line beside it. Start now: Steve, name Jordan and Pepe,
 ask them for one word each about rain, and say why you are asking. Never name me
 and never ask me anything.
 ```
@@ -377,7 +378,7 @@ Twenty questions, but the answer and the next question arrive in the same line.
 On your turn answer what you were asked in three words or fewer, add one clause
 of colour that does not give the thing away, then ask a different question and
 name which of the other two must answer it. Nobody guesses before the tenth
-question. Never ask me a question; I am not playing. Anna, start by asking Jordan
+question. Never ask me a question; I am not playing. Steve, start by asking Jordan
 whether the thing is heavier than a chair.
 ```
 
@@ -386,7 +387,7 @@ whether the thing is heavier than a chair.
 ```
 Play Tutti Frutti with me as the fourth player. The letter is M, the categories
 are name, country, food, animal, colour, object, and the order around the table
-is Anna, Jordan, Pepe, me. Each of you gives one item and one short clause of
+is Steve, Jordan, Pepe, me. Each of you gives one item and one short clause of
 colour about it, then names the next player. When it is my turn, name me and then
 stop: nobody speaks again, nobody fills in for me, nobody asks whether I am still
 there, until I have written my word. Pick it up from whatever I say. If I repeat
@@ -424,7 +425,7 @@ To work on it, the same pieces run apart, so each can be restarted on its own:
 pnpm setup                             # writes .hermes/ with a config and a key
 # add OPENROUTER_API_KEY + ELEVENLABS_API_KEY to .hermes/.env
 pnpm start                             # the runtime
-uv run python scripts/group_up.py      # Anna, Jordan, Pepe
+uv run python scripts/group_up.py      # Steve, Jordan, Pepe
 pnpm web                               # the room
 ```
 

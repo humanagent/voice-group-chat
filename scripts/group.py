@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A group chat with several agents in it.
 
-    scripts/group_up.py Anna Jordan Pepe       # once
+    scripts/group_up.py Steve Jordan Pepe       # once
     scripts/group.py                          # then talk, in a new group
     scripts/group.py --session group-1787…    # or reopen one
 
@@ -136,7 +136,7 @@ def audience_for(agents: list[Agent], line: Line) -> list[Agent]:
 
     It was briefly narrower — a reply went only to the agents it named, which is
     faster and cheaper and quietly wrong. Pepe, asked to pass the standup on,
-    handed it back to Anna: he had never been given her turn, so he did not know
+    handed it back to Steve: he had never been given her turn, so he did not know
     she had gone. Not a lapse in judgement, a hole in what he was told. An agent
     cannot decide well about a conversation it is only hearing half of.
 
@@ -174,7 +174,7 @@ def round_of(
         # As each one lands, not once they all have. `pool.map` collected the
         # whole round before printing a character of it, so one agent's bad
         # minute was everybody's: a transient connection error on Jordan's call
-        # cost forty seconds of staring at nothing while Anna's answer — ready in
+        # cost forty seconds of staring at nothing while Steve's answer — ready in
         # two — sat in a list waiting for him to finish saying nothing.
         #
         # Arrival order, and that is the honest order: in a room, who spoke

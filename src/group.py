@@ -81,7 +81,7 @@ def open_chat(agent: Agent, chat: str) -> None:
     """Give one agent its own session for this chat.
 
     Each agent keeps a separate session under the same chat name, because the
-    session is where its history lives and history is per-agent: what Anna
+    session is where its history lives and history is per-agent: what Steve
     remembers of this room is not what Jordan remembers.
     """
     try:
@@ -190,7 +190,7 @@ def roster(agents: list[Agent], people: list[str]) -> str:
         # which is not the prefix banned above — said here because an agent
         # given both rules at once has read the second as forbidding the first.
         "When your reply asks a question, name who you are asking: \"what did "
-        "you have in mind, Anna?\". That name goes inside the sentence, not in "
+        "you have in mind, Steve?\". That name goes inside the sentence, not in "
         "front of it."
     )
 

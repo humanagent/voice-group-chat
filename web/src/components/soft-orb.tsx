@@ -7,7 +7,7 @@ const palettes = [
   ["#ffe5c0", "#d69e7b", "#735050"],
   ["#d2f8e9", "#83bdb0", "#345d64"],
 ]
-const familiar: Record<string, number> = { Anna: 0, Jordan: 1, Pepe: 2 }
+const familiar: Record<string, number> = { Steve: 0, Jordan: 1, Pepe: 2 }
 
 /** Composited gradients keep the room alive without a WebGL context per agent. */
 export function SoftOrb({ name, className, still = false }: { name: string; className?: string; still?: boolean }) {

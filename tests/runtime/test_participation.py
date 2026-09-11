@@ -61,8 +61,8 @@ def test_being_named_is_told_and_never_ordered() -> None:
     """The check is a fact about the text; whether the message was MEANT for
     this agent is a judgement, and the model is the one holding the sentence.
 
-    "Anna, tell Pepe to say hi" carries Pepe's name, so the check says addressed.
-    Ending that note with "Answer it." made him answer a request that was Anna's
+    "Steve, tell Pepe to say hi" carries Pepe's name, so the check says addressed.
+    Ending that note with "Answer it." made him answer a request that was Steve's
     to relay — and answer again when she relayed it.
     """
     p.set_mode("r", p.MENTION)

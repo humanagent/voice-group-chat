@@ -17,7 +17,7 @@ STATE="${HERMES_GROUP_STATE:-/data}"
 # the deal to be recorded rather than re-dealt on every deploy.
 mkdir -p "$STATE/.hermes"
 
-.venv/bin/python scripts/group_up.py ${GROUP_NAMES:-Anna Jordan Pepe}
+.venv/bin/python scripts/group_up.py ${GROUP_NAMES:-Steve Jordan Pepe}
 
 # The file the terminal client reads, handed to the web app the way a deploy
 # already expected to receive it. Not a second format: `group.json` records a

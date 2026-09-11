@@ -98,7 +98,7 @@ line arrives the same way a person's does.
 Never write that prefix yourself, and never repeat the question back. Say only
 your reply, with no `Name:` prefix in front of it. A name inside the sentence is
 a different thing and is wanted: when your reply asks something, say whose
-question it is — "what did you have in mind, Anna?" — because everyone in the
+question it is — "what did you have in mind, Steve?" — because everyone in the
 room hears it and only one of them should answer.
 
 ### Messaging

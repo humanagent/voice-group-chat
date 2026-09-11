@@ -25,7 +25,7 @@ async function recording(page: Page, options: { finalize?: boolean; tokenFailure
       if (route.request().method() === "GET") return route.fulfill({ json: { run } })
       sent.push(route.request().postDataJSON().message)
       run = { id: "9c2e4b70-58d6-4a1c-9a7e-2f3b5d8c6014", score: 2, status: "quiet", submitted: false }
-      return route.fulfill({ contentType: "text/event-stream", body: [{ type: "challenge", run }, said("Anna", "First reply"), said("Pepe", "Second reply"), { type: "done" }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") })
+      return route.fulfill({ contentType: "text/event-stream", body: [{ type: "challenge", run }, said("Steve", "First reply"), said("Pepe", "Second reply"), { type: "done" }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") })
     })
     // The round ends by publishing itself: the name was given before it started.
     await page.route("**/api/challenge/scoreboard", (route) => {

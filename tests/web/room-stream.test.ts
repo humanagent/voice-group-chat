@@ -16,16 +16,16 @@ async function collect(response: Response) {
 
 describe("the room stream", () => {
   it("keeps accented and emoji text intact across single-byte UTF-8 chunks", async () => {
-    const event = { type: "said", agent: "Anna", text: "Sí, café ☕", audio: null, grant: "signed" }
+    const event = { type: "said", agent: "Steve", text: "Sí, café ☕", audio: null, grant: "signed" }
     expect(await collect(stream(`: heartbeat\r\n\r\ndata:${JSON.stringify(event)}\r\n\r\ndata: {"type":"done"}\r\n\r\n`))).toEqual([event, { type: "done" }])
   })
   it("treats a closed stream without done as an interrupted conversation", async () => {
-    await expect(collect(stream('data: {"type":"thinking","agent":"Anna"}\n\n'))).rejects.toThrow("connection ended")
+    await expect(collect(stream('data: {"type":"thinking","agent":"Steve"}\n\n'))).rejects.toThrow("connection ended")
   })
   it("surfaces HTTP failures and malformed messages", async () => {
     await expect(collect(new Response("unavailable", { status: 503 }))).rejects.toThrow("could not receive")
-    await expect(collect(stream('data: {"type":"said","agent":"Anna","text":42,"grant":"signed"}\n\n'))).rejects.toThrow("Invalid room event")
+    await expect(collect(stream('data: {"type":"said","agent":"Steve","text":42,"grant":"signed"}\n\n'))).rejects.toThrow("Invalid room event")
     // A spoken line with no proof the room said it is not a line this client acts on.
-    await expect(collect(stream('data: {"type":"said","agent":"Anna","text":"hi","audio":null}\n\n'))).rejects.toThrow("Invalid room event")
+    await expect(collect(stream('data: {"type":"said","agent":"Steve","text":"hi","audio":null}\n\n'))).rejects.toThrow("Invalid room event")
   })
 })

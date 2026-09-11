@@ -20,7 +20,7 @@ Install the frontend dependencies once, then start the group. From the repo root
 pnpm --dir web install --frozen-lockfile
 pnpm setup                             # once
 pnpm start                             # the single runtime
-uv run python scripts/group_up.py      # Anna, Jordan, Pepe
+uv run python scripts/group_up.py      # Steve, Jordan, Pepe
 pnpm web                               # this app
 ```
 
@@ -35,7 +35,7 @@ Vercel has no `group.json` and no localhost, so the same thing arrives as an
 environment variable:
 
 ```
-GROUP_AGENTS=[{"name":"Anna","url":"https://…","key":"…"}, …]
+GROUP_AGENTS=[{"name":"Steve","url":"https://…","key":"…"}, …]
 ELEVENLABS_API_KEY=…
 ```
 
@@ -53,12 +53,12 @@ way `round_of` does in the terminal client, and streams what happens as it
 happens:
 
 ```
-thinking  Anna       0.0s
+thinking  Steve       0.0s
 thinking  Jordan     0.0s
 thinking  Pepe       0.0s
 quiet     Pepe       1.8s
 quiet     Jordan     2.1s
-said      Anna       4.6s   Pepe, say a number.
+said      Steve       4.6s   Pepe, say a number.
 thinking  Pepe       4.6s
 said      Pepe       8.6s   17
 ```
