@@ -280,6 +280,119 @@ rather than a prompt. `SETUP.md` has the long version.
 20:07:16 [policy]  quiet   reason='suppress token' raw=8 → 0
 ```
 
+## Games to paste in
+
+The turn-taking policy is the interesting thing to break, and a word game breaks
+it hardest: three agents who only speak when addressed, and a round that has to
+survive twenty handoffs with nobody conducting it. Two rules decide whether it
+lives. Every line has to end on a name, because a line that names nobody is a
+line nobody picks up and the round dies on its first step. And no line may
+address whoever is holding the microphone, because the moment one of them turns
+to ask me something, all three wait for a human who was only watching.
+
+So each prompt below says who goes next, forbids talking to me, and asks for one
+clause of colour per turn. That last part is what makes them worth watching: an
+agent handed "give one animal" answers `Mongoose.` and the round reads like a
+spreadsheet, while the same agent asked for a reason answers in the voice it was
+dealt. Paste one in and say nothing else.
+
+**Tutti Frutti**
+
+```
+Play Tutti Frutti, just the three of you. The letter is M. The categories run in
+this fixed order: name, country, food, animal, colour, object. On your turn give
+one item for the category you were handed, then hand the next category to
+whichever of the other two has not gone yet, by name. Add one short clause of
+colour to your item in your own voice: where you met it, why it came to mind,
+what it costs, what breaks about it. One sentence for the whole turn. No repeats,
+and if an item was already said answer "repeated" and give another. When the six
+categories are done, whoever answered last starts a new round on the next letter
+and hands off again. Never ask me anything and never say my name; the game is
+between the three of you and it runs until I stop it.
+```
+
+**Word chain**
+
+```
+Word chain, three players, nobody else. Each turn is one word starting with the
+last letter of the word before it, then a short clause saying why that word and
+not another (an image, a memory, a complaint, something in character), then the
+name of whichever of the other two did not just speak. One line: one word, one
+reason, one name. No repeats and no proper nouns. If you are handed a word ending
+in an awkward letter, say so in the same breath and solve it anyway. Do not
+address me at all; I am only watching.
+```
+
+**Countdown with traps**
+
+```
+Count down from 100 between the three of you. On your turn say the next number,
+but if it is divisible by 3 say a fruit instead, if it is divisible by 5 say a
+city instead, and if it is divisible by both say the fruit and the city. After
+the number or the substitute add one short clause about it in character: what
+that number reminds you of, why that city, what that fruit costs this week. Then
+name whichever of the other two spoke least recently, so nobody goes twice in a
+row. One line each. Never break the count to talk to me.
+```
+
+**One sentence at a time**
+
+```
+Tell one story between the three of you, one sentence per turn. Every sentence
+must begin with the last word of the sentence before it, not counting the name at
+the end, and must finish by naming who tells the next one. Each sentence has to
+put one concrete new thing on the table: a place, a smell, a name, a piece of
+weather. Keep them to one line. Nobody summarises, nobody recaps, nobody ends the
+story. Do not write me into it and do not ask me what happens next.
+```
+
+**Two answers to a line**
+
+```
+Rule for this game: whenever someone names two of you, both of you answer, one
+short line each, and each of you then names the two who did not just speak, so
+the room doubles every turn until somebody names only one person and it drops
+back to one. Every line has to carry something of its own, in your own voice,
+never agreement with the line beside it. Start now: Anna, name Jordan and Pepe,
+ask them for one word each about rain, and say why you are asking. Never name me
+and never ask me anything.
+```
+
+**Three-way debate**
+
+```
+A three-way debate: is a rollback nobody noticed a success or a failure? Each
+turn is one sentence that disagrees with the sentence immediately before it,
+gives one concrete reason from your own work (a number, an incident, a thing a
+user saw), and then names one of the other two to answer it. You may not agree,
+you may not say "both", and you may not conclude. If you are handed your own
+earlier position, argue against it. Never involve me and never ask me to settle
+it.
+```
+
+**Circular twenty questions**
+
+```
+Twenty questions, but the answer and the next question arrive in the same line.
+On your turn answer what you were asked in three words or fewer, add one clause
+of colour that does not give the thing away, then ask a different question and
+name which of the other two must answer it. Nobody guesses before the tenth
+question. Never ask me a question; I am not playing. Anna, start by asking Jordan
+whether the thing is heavier than a chair.
+```
+
+**With me playing**
+
+```
+Play Tutti Frutti with me as the fourth player. The letter is M, the categories
+are name, country, food, animal, colour, object, and the order around the table
+is Anna, Jordan, Pepe, me. Each of you gives one item and one short clause of
+colour about it, then names the next player. When it is my turn, name me and then
+stop: nobody speaks again, nobody fills in for me, nobody asks whether I am still
+there, until I have written my word. Pick it up from whatever I say. If I repeat
+something, say "repeated" and hand it straight back to me.
+```
+
 ## Running it
 
 The live one is above. To run your own, one container holds the three gateways
